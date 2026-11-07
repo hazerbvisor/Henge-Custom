@@ -233,6 +233,22 @@ int hv_vm_create(const HvVmConfig *c, char *err, size_t errlen) {
     if (hv_disk_open(&disk, c->disk, 0, 0) != 0) return fail(err, errlen, "Cannot open the disk image.");
     if (hv_disk_open(&aux, c->aux, c->aux_offset ? c->aux_offset : 16384, 0) != 0)
         return fail(err, errlen, "Cannot open the auxiliary storage.");
+    /* Read-only GPT/geometry check, printed before firmware starts. */
+    fprintf(stderr, "hengevm: boot geometry: root %llu bytes (%llu sectors), aux %llu bytes\n",
+            (unsigned long long)disk.size, (unsigned long long)(disk.size / 512),
+            (unsigned long long)aux.size);
+    uint8_t gpt[512] = {0};
+    if (hv_disk_read(&disk, 512, gpt, sizeof gpt) == 0 && memcmp(gpt, "EFI PART", 8) == 0) {
+        uint64_t primary_lba = 0, backup_lba = 0;
+        memcpy(&primary_lba, gpt + 24, sizeof primary_lba);
+        memcpy(&backup_lba, gpt + 32, sizeof backup_lba);
+        fprintf(stderr, "hengevm: boot GPT: primary LBA %llu, secondary LBA %llu, disk last LBA %llu (%s)\n",
+                (unsigned long long)primary_lba, (unsigned long long)backup_lba,
+                (unsigned long long)(disk.size / 512 - 1),
+                backup_lba == disk.size / 512 - 1 ? "matches capacity" : "NOT at disk end");
+    } else {
+        fprintf(stderr, "hengevm: boot GPT: no valid primary header at LBA 1\n");
+    }
     size_t jit = c->jit_bytes ? c->jit_bytes : (size_t)768 << 20;
     int r = c->jit_rx ? hv_machine_init_jit(&m, c->jit_rx, c->jit_rw, jit) : hv_machine_init(&m, jit);
     if (r != 0) return fail(err, errlen, "Cannot set up the JIT region.");
