@@ -106,7 +106,7 @@ final class HardwareMouse {
 
     private var observers: [NSObjectProtocol] = []
     private var mice: [GCMouse] = []
-    private var buttons = PhysicalMouseButtons(swapsLeftAndMiddle: false)
+    private var buttons = PhysicalMouseButtons(swapsRightAndMiddle: false)
     private var buttonsLogged = 0
     private var restX: Float = 0, restY: Float = 0
     private var speed: Float = 1
@@ -120,9 +120,9 @@ final class HardwareMouse {
         releaseButtons()
         let swap = Device.isPad && (defaults.object(forKey: PhysicalMouseButtons.swapKey) == nil
             ? PhysicalMouseButtons.defaultSwap : defaults.bool(forKey: PhysicalMouseButtons.swapKey))
-        buttons = PhysicalMouseButtons(swapsLeftAndMiddle: swap)
+        buttons = PhysicalMouseButtons(swapsRightAndMiddle: swap)
         buttonsLogged = 0
-        HengeLog.log("input", "physical mouse mapping: swap left/middle \(swap ? "on (left=2, right=1, middle=0)" : "off (left=0, right=1, middle=2)")")
+        HengeLog.log("input", "physical mouse mapping: swap right/middle \(swap ? "on (left=0, right=2, middle=1)" : "off (left=0, right=1, middle=2)")")
         GCMouse.mice().forEach(attach)
         observers.append(NotificationCenter.default.addObserver(forName: .GCMouseDidConnect, object: nil, queue: .main) { [weak self] note in
             if let mouse = note.object as? GCMouse { self?.attach(mouse) }

@@ -1,8 +1,8 @@
 # Physical mouse compatibility on iPad
 
-This fork provides a configurable workaround for the reported left/middle reversal
+This fork provides a configurable workaround for the reported right/middle reversal
 on an iPad Air M4 (iPad16,8), iPadOS 27.0.1. It is enabled by default on iPad in this build; iPhones retain the original mapping.
-In **Settings > Mouse and Trackpad**, turn **Swap physical left and middle
+In **Settings > Mouse and Trackpad**, turn **Swap physical right and middle
 buttons** off for a mouse or Magic Keyboard trackpad that already works normally.
 Changes apply when a Mac session starts; fully close and reopen Henge before
 starting another session (Henge supports one guest per launch).
@@ -16,8 +16,11 @@ starting another session (Henge supports one guest per launch).
 with no further permutation. The on-screen trackpad and click buttons use the
 same bridge with the standard IDs. Those files and their mapping are unchanged.
 
-With compatibility on, only GameController button events use 0 -> 2, 1 -> 1,
-2 -> 0, for both press and release. The setting is fixed per session and cleanup
+The old left/middle preference is ignored; the right/middle setting uses a new
+preference key so the two swaps cannot be combined.
+
+With compatibility on, only GameController button events use 0 -> 0, 1 -> 2,
+2 -> 1, for both press and release. The setting is fixed per session and cleanup
 releases the mapped IDs. Movement, wheel processing and pointer-lock requests are
 unchanged. GameController also supplies external trackpads, so the setting covers
 those devices too. It is a global preference, not per-mouse auto-detection.
@@ -33,7 +36,7 @@ scroll diagnostics remain. Share it from **Settings > Log > Share henge.log**.
 ## Automated verification and build
 
 `ios/scripts/check_mouse_buttons.sh` compiles the actual Swift routing state
-machine on macOS and tests swapped drag press/release, unchanged right-click,
+machine on macOS and tests swapped right/middle press/release, unchanged left-click and dragging,
 standard opt-out, invalid input and disconnect/background cleanup.
 The manual `.github/workflows/ios-development-ipa.yml` workflow checks out the
 fork commit (the workflow commit by default), runs these tests, builds pinned Husk
@@ -68,8 +71,8 @@ bundles together using your development certificate and supported entitlements.
 7. Turn the compatibility toggle off, fully close/reopen Henge and start a session.
    Confirm the original mapping returns. Try another mouse or Magic Keyboard
    trackpad and retain whichever setting makes left/middle/right behave normally.
-8. Export `henge.log` after a short test. With swap on, raw 0 should show guest 2,
-   raw 2 guest 0, and raw 1 guest 1, with paired down/up events. Include mouse model,
+8. Export `henge.log` after a short test. With swap on, raw 0 should show guest 0,
+   raw 1 guest 2, and raw 2 guest 1, with paired down/up events. Include mouse model,
    connection type and selected setting if reporting a remaining issue.
 
 A successful build and bundle validation do not verify physical click behavior,

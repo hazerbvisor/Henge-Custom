@@ -39,8 +39,8 @@ struct SettingsView: View {
                             Slider(value: $mouseSpeed, in: 0.5...3)
                         }
                         Toggle("Reverse scrolling", isOn: $reverseScrolling)
-                        Toggle("Swap physical left and middle buttons", isOn: $swapMouseButtons)
-                        Text("Use this if a mouse's left-click acts as middle-click. Turn it off for mice that already click correctly. Touch controls are unchanged.")
+                        Toggle("Swap physical right and middle buttons", isOn: $swapMouseButtons)
+                        Text("Use this if a mouse's right-click acts as middle-click. Turn it off for mice that already click correctly. Left-click and touch controls are unchanged.")
                             .font(.footnote).foregroundStyle(.secondary)
                         Text("A Magic Keyboard or a Bluetooth mouse moves the Mac's pointer. Changes apply the next time a Mac starts.")
                             .font(.footnote).foregroundStyle(.secondary)

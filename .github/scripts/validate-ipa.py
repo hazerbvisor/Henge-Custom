@@ -52,7 +52,8 @@ with tempfile.TemporaryDirectory() as tmp:
               helper/'HengeJITHelper', framework/'StikJIT', framework/'Info.plist']:
         require(f.is_file() and f.stat().st_size > 0, f'Missing required bundle file: {f}')
     require(b'avp-ctrr' in (app/'Henge').read_bytes(), 'avp-ctrr implementation missing from app binary')
-    require(b'henge.mouse.swapLeftAndMiddle' in (app/'Henge').read_bytes(), 'Compatibility setting missing from compiled app')
+    require(b'henge.mouse.swapRightAndMiddle' in (app/'Henge').read_bytes(), 'Compatibility setting missing from compiled app')
+    require(b'henge.mouse.swapLeftAndMiddle' not in (app/'Henge').read_bytes(), 'Previous left/middle workaround still present in compiled app')
     require(b'physical mouse button: raw=' in (app/'Henge').read_bytes(), 'Mouse routing diagnostics missing from compiled app')
     info = plist(app/'Info.plist')
     require(info['CFBundleIdentifier'] == 'com.henge.app', 'App bundle ID changed')
@@ -74,7 +75,7 @@ with tempfile.TemporaryDirectory() as tmp:
         'upstream_baseline': upstream,
         'workflow_commit': os.environ['GITHUB_SHA'],
         'mouse_sources_sha256': {p: hashlib.sha256((source/p).read_bytes()).hexdigest() for p in mouse_sources},
-        'mouse_compatibility_default': 'swap physical left/middle; right unchanged',
+        'mouse_compatibility_default': 'swap physical right/middle; left unchanged',
         'shared_input_pipeline': 'unchanged from upstream',
         'sha256': hashlib.sha256(ipa.read_bytes()).hexdigest(),
         'bundle_identifier': info['CFBundleIdentifier'],
