@@ -16,6 +16,11 @@ libslirp and glib for iOS).
 - **Memory**: `increased-memory-limit` is recommended, not required. Once a
   debugger has attached, guest RAM is kept out of the app's memory limit, and if
   iOS refuses that it comes from a file on free storage instead.
+- **New Mac storage:** the Install screen offers 64 / 128 / 256 / 512 GiB sparse virtual
+  disks (128 GiB default). Capacity is the logical disk ceiling, not instant
+  allocation on the iPad. macOS partitions its disk during a new installation;
+  this avoids moving the Recovery partition after enlarging an existing disk.
+  Larger sizes have not been physically validated with Henge's restore process.
 - **Machines** are installed on the iPhone from Apple's restore image
   (`Installer.swift`, [docs/architecture.md](../docs/architecture.md)). A machine
   can also be exported from the app, or made on a Mac with

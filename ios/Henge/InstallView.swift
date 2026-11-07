@@ -7,6 +7,7 @@ struct InstallView: View {
     @State private var release = MacOSRelease.all.first(where: Installer.haveImage) ?? MacOSRelease.all[0]
     @State private var name = "Mac"
     @State private var ramGB = Device.suggestedRAMGB
+    @State private var diskGiB = Installer.defaultDiskGiB
     @State private var deleteAfter = false
     @State private var refresh = 0 // redraws the list when a download is deleted
     @State private var details = false
@@ -69,6 +70,25 @@ struct InstallView: View {
                 .padding(.vertical, 14)
             Rectangle().fill(Desk.hairline).frame(height: 0.5)
             HStack {
+                Text("Disk size").font(.system(size: 16))
+                Spacer()
+                Picker("Disk size", selection: $diskGiB) {
+                    ForEach(Installer.diskSizesGiB, id: \.self) { size in
+                        Text("\(size) GiB").tag(size)
+                    }
+                }
+                .pickerStyle(.menu)
+            }
+            .padding(.horizontal, 17)
+            .padding(.vertical, 10)
+            Text("Sparse virtual disk: only data written by macOS uses real \(Device.name) storage. Select the capacity before installing to avoid resizing partitions later.")
+                .font(.system(size: 13))
+                .foregroundStyle(Desk.dim)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 17)
+                .padding(.bottom, 12)
+            Rectangle().fill(Desk.hairline).frame(height: 0.5)
+            HStack {
                 Text("Memory").font(.system(size: 16))
                 Spacer()
                 Picker("Memory", selection: $ramGB) {
@@ -88,7 +108,7 @@ struct InstallView: View {
         .deskCard()
 
         Button(Installer.haveImage(release) ? "Install" : "Download and Install") {
-            installer.start(release, name: name.isEmpty ? "Mac" : name, ramMB: ramGB * 1024, cpus: cpus, keepImage: !deleteAfter)
+            installer.start(release, name: name.isEmpty ? "Mac" : name, ramMB: ramGB * 1024, cpus: cpus, diskGiB: diskGiB, keepImage: !deleteAfter)
         }
         .buttonStyle(DeskButtonStyle(enabled: JITBootstrap.ready && !Device.chipTooOld))
         .disabled(!JITBootstrap.ready || Device.chipTooOld)

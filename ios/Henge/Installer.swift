@@ -31,6 +31,16 @@ struct MacOSRelease: Identifiable, Hashable {
 final class Installer: NSObject, ObservableObject {
     static let shared = Installer()
 
+    /// Logical capacities offered for a new sparse virtual disk. The backing file grows
+    /// only as the guest writes data; these numbers are NOT host storage requirements.
+    static let diskSizesGiB = [64, 128, 256, 512]
+    static let defaultDiskGiB = 128
+
+    static func diskBytes(forGiB value: Int) -> Int64? {
+        guard diskSizesGiB.contains(value) else { return nil }
+        return Int64(value) << 30
+    }
+
     enum Phase: Equatable {
         case idle
         case downloading
@@ -73,14 +83,19 @@ final class Installer: NSObject, ObservableObject {
 
     static func deleteImage(_ r: MacOSRelease) { try? FileManager.default.removeItem(at: imagePath(r)) }
 
-    /// Free space an install takes: the new Mac's disk, and the download if it is not here yet.
+    /// Estimated real iPad free space required for the initial installation, NOT the sparse
+    /// virtual disk's logical size. macOS will need more actual space as files are written.
     static func spaceNeeded(_ r: MacOSRelease) -> Int64 { (haveImage(r) ? 0 : r.bytes) + newMacBytes }
     private static let newMacBytes: Int64 = 24 << 30
 
     func reset() { if !busy { phase = .idle } }
 
-    func start(_ release: MacOSRelease, name: String, ramMB: Int, cpus: Int, keepImage: Bool) {
+    func start(_ release: MacOSRelease, name: String, ramMB: Int, cpus: Int, diskGiB: Int, keepImage: Bool) {
         guard !busy else { return }
+        guard Self.diskBytes(forGiB: diskGiB) != nil else {
+            phase = .failed("Unsupported disk size. Choose 64, 128, 256, or 512 GiB.")
+            return
+        }
         machineName = name
         UIApplication.shared.isIdleTimerDisabled = true // the screen locking would suspend the download and the restore
         Task {
@@ -92,7 +107,7 @@ final class Installer: NSObject, ObservableObject {
                 HengeLog.log("install", "boot ROM ready")
                 let ipsw = try await download(release)
                 phase = .preparing
-                var mac = try prepare(name: name, ramMB: ramMB, rom: rom)
+                var mac = try prepare(name: name, ramMB: ramMB, diskGiB: diskGiB, rom: rom)
                 mac.osName = release.name
                 made = mac
                 phase = .installing
@@ -162,10 +177,11 @@ final class Installer: NSObject, ObservableObject {
 
     // MARK: The new machine
 
-    private func prepare(name: String, ramMB: Int, rom: URL) throws -> VirtualMac {
+    private func prepare(name: String, ramMB: Int, diskGiB: Int, rom: URL) throws -> VirtualMac {
+        guard let capacity = Self.diskBytes(forGiB: diskGiB) else { throw message("Unsupported disk size.") }
         // A new machine identity, as VZMacMachineIdentifier makes one: a random ECID.
         let ecid = UInt64.random(in: 1 << 40 ..< 1 << 62)
-        var mac = VirtualMac(name: name, ecid: ecid, seed: 0, ramMB: ramMB, diskBytes: 64 << 30)
+        var mac = VirtualMac(name: name, ecid: ecid, seed: 0, ramMB: ramMB, diskBytes: capacity)
         (mac.screenWidth, mac.screenHeight) = Device.fittingScreen
         let fm = FileManager.default
         try fm.createDirectory(at: mac.directory, withIntermediateDirectories: true)
@@ -174,13 +190,14 @@ final class Installer: NSObject, ObservableObject {
         try fm.copyItem(at: rom, to: mac.rom)
         guard fm.createFile(atPath: mac.disk.path, contents: nil) else { throw message("Cannot create the disk.") }
         let h = try FileHandle(forWritingTo: mac.disk)
-        try h.truncate(atOffset: UInt64(64) << 30) // sparse: blocks are only used as macOS writes them
+        try h.truncate(atOffset: UInt64(capacity)) // sparse: only written blocks use iPad storage
         try h.close()
         guard henge_make_aux(mac.aux.path) == 0 else { throw message("Cannot create the auxiliary storage.") }
         let info: [String: Any] = ["name": name, "ecid": ecid, "seed": 0, "ramMB": ramMB]
         try JSONSerialization.data(withJSONObject: info).write(to: mac.directory.appendingPathComponent("machine.json"))
-        mac.diskBytes = 64 << 30
-        HengeLog.log("install", "new machine \(name): ECID \(ecid), 64 GB disk")
+        let actualSize = try fm.attributesOfItem(atPath: mac.disk.path)[.size] as? NSNumber
+        guard actualSize?.int64Value == capacity else { throw message("Cannot verify the new virtual disk size.") }
+        HengeLog.log("install", "new machine \(name): ECID \(ecid), \(diskGiB) GiB sparse disk")
         return mac
     }
 
