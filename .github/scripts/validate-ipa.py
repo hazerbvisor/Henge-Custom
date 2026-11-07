@@ -39,6 +39,7 @@ with tempfile.TemporaryDirectory() as tmp:
     for f in [app/'Henge', app/'henge-jit.js', app/'henge-agent.gz',
               helper/'HengeJITHelper', framework/'StikJIT', framework/'Info.plist']:
         require(f.is_file() and f.stat().st_size > 0, f'Missing required bundle file: {f}')
+    require(b'avp-ctrr' in (app/'Henge').read_bytes(), 'avp-ctrr implementation missing from app binary')
     info = plist(app/'Info.plist')
     require(info['CFBundleIdentifier'] == 'com.henge.app', 'App bundle ID changed')
     require(plist(helper/'Info.plist')['CFBundleIdentifier'] == 'com.henge.app.JITHelper', 'Helper ID changed')
