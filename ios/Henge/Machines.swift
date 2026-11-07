@@ -240,6 +240,57 @@ final class Machines: ObservableObject {
         save()
     }
 
+
+    /// Grow only the logical length of an offline sparse disk image. Never touch its existing blocks
+    /// or pretend that macOS's GPT partition/APFS container has already grown.
+    /// The caller must acknowledge a separate backup moved outside Henge.
+    func expandDisk(_ id: UUID, toGiB: Int) throws -> VirtualMac {
+        guard let index = all.firstIndex(where: { $0.id == id }) else {
+            throw message("This Mac no longer exists.")
+        }
+        guard [128, 256, 512].contains(toGiB) else {
+            throw message("Choose one of the supported virtual disk capacities.")
+        }
+        guard henge_vm_state() == 0 else {
+            throw message("Quit Henge completely and reopen it after shutting down the Mac before expanding a disk.")
+        }
+        guard exporting == nil, importing == nil, !Installer.shared.busy else {
+            throw message("Wait for the current import, export or macOS installation to finish.")
+        }
+
+        let diskURL = all[index].disk
+        let properties = try diskURL.resourceValues(forKeys: [.isRegularFileKey])
+        guard properties.isRegularFile == true else {
+            throw message("The disk is not a regular file.")
+        }
+        let attributes = try FileManager.default.attributesOfItem(atPath: diskURL.path)
+        guard let oldSize = (attributes[.size] as? NSNumber)?.int64Value,
+              oldSize == all[index].diskBytes,
+              oldSize > 0, oldSize % 512 == 0 else {
+            throw message("Disk image size differs from the saved Mac configuration. Restart Henge and inspect the disk before continuing.")
+        }
+        let newSize = Int64(toGiB) << 30
+        guard newSize > oldSize else {
+            throw message("Storage expansion cannot shrink a disk.")
+        }
+
+        // Extending a sparse file is an O(1) change on APFS: holes use no real space
+        // until written. Do not copy the image, preallocate space, or rewrite its GPT.
+        let handle = try FileHandle(forWritingTo: diskURL)
+        defer { try? handle.close() }
+        try handle.truncate(atOffset: UInt64(newSize))
+        try handle.synchronize()
+
+        let verified = try FileManager.default.attributesOfItem(atPath: diskURL.path)
+        guard (verified[.size] as? NSNumber)?.int64Value == newSize else {
+            throw message("The expanded disk length could not be verified. Do not boot this Mac until the image has been checked.")
+        }
+        all[index].diskBytes = newSize
+        save()
+        HengeLog.log("machines", "expanded sparse disk for \(all[index].name) from \(oldSize >> 30) to \(toGiB) GiB; guest GPT/APFS still requires expansion")
+        return all[index]
+    }
+
     func delete(_ id: UUID) {
         try? FileManager.default.removeItem(at: Self.directory(for: id))
         all.removeAll { $0.id == id }
@@ -261,6 +312,13 @@ final class Machines: ObservableObject {
     private func load() {
         guard let data = try? Data(contentsOf: listURL), let list = try? JSONDecoder().decode([VirtualMac].self, from: data) else { return }
         all = list.filter { FileManager.default.fileExists(atPath: $0.disk.path) }
+        // Recover the actual logical length after a crash between ftruncate and metadata save.
+        for index in all.indices {
+            if let properties = try? FileManager.default.attributesOfItem(atPath: all[index].disk.path),
+               let actualSize = (properties[.size] as? NSNumber)?.int64Value, actualSize > 0 {
+                all[index].diskBytes = actualSize
+            }
+        }
     }
 
     private func save() {
