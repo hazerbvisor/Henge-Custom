@@ -173,10 +173,21 @@ static void command(HvBdif *b, HvDisk *disk, uint64_t req_pa) {
             }
         }
     }
-    if (b->m->log >= 2 || ret) {
+    /*
+     * Boot diagnostic build: report a bounded sample of successful BDIF
+     * operations as well as failures. This is especially useful for an iBoot
+     * Stage1 panic, which happens before the guest's kernel can write logs.
+     * Never print guest disk contents, only sector/length/direction/status.
+     * The REG_NEXT_DEVICE values are QEMU's device discovery constants,
+     * not a hardcoded virtual disk size; leave those intact.
+     */
+    static unsigned successful_seen, failed_seen;
+    unsigned n = ret ? __atomic_fetch_add(&failed_seen, 1, __ATOMIC_RELAXED)
+                     : __atomic_fetch_add(&successful_seen, 1, __ATOMIC_RELAXED);
+    if (b->m->log >= 2 || n < (ret ? 64u : 96u)) {
         uint32_t sector[4] = {0};
         hv_phys_read(b->m, req[0].addr, sector, sizeof sector);
-        fprintf(stderr, "bdif %s: sector %u len %u flags %x -> %s\n", disk == b->aux ? "aux" : "root", sector[2],
+        fprintf(stderr, "bdif-bootio %s: sector %u len %u flags %x -> %s\n", disk == b->aux ? "aux" : "root", sector[2],
                 req[1].len, req[1].flags, ret ? "failed" : "ok");
     }
     hv_phys_write(b->m, req[2].addr, &ret, 1);
