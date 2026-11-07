@@ -5,6 +5,7 @@ struct SettingsView: View {
     @AppStorage(JITCoordinator.autoEnableKey) private var jitAtLaunch = false
     @AppStorage(HardwareMouse.speedKey) private var mouseSpeed = 1.0
     @AppStorage(HardwareMouse.reverseKey) private var reverseScrolling = false
+    @AppStorage(PhysicalMouseButtons.swapKey) private var swapMouseButtons = PhysicalMouseButtons.defaultSwap
 
     var body: some View {
         NavigationStack {
@@ -38,6 +39,9 @@ struct SettingsView: View {
                             Slider(value: $mouseSpeed, in: 0.5...3)
                         }
                         Toggle("Reverse scrolling", isOn: $reverseScrolling)
+                        Toggle("Swap physical left and middle buttons", isOn: $swapMouseButtons)
+                        Text("Use this if a mouse's left-click acts as middle-click. Turn it off for mice that already click correctly. Touch controls are unchanged.")
+                            .font(.footnote).foregroundStyle(.secondary)
                         Text("A Magic Keyboard or a Bluetooth mouse moves the Mac's pointer. Changes apply the next time a Mac starts.")
                             .font(.footnote).foregroundStyle(.secondary)
                     }
