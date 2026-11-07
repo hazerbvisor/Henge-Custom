@@ -149,10 +149,25 @@ static uint64_t bdif_read(void *opaque, uint64_t off, unsigned size) {
     case REG_BUSY: return 1;      /* ready */
     case REG_UNK2: return 1;
     case REG_UNK3: return 0;
-    case REG_NEXT_DEVICE:
-        if (devid == DEVID_ROOT) return 0x8000000;
-        if (devid == DEVID_AUX) return 0x10000;
-        return ~0ull;
+    case REG_NEXT_DEVICE: {
+        /* This register reports the device's SIZE IN 512-BYTE SECTORS.
+         * QEMU's fixed values (0x8000000 root / 0x10000 aux) are 64 GiB
+         * and 32 MiB respectively. A larger sparse disk created before
+         * restore must report its actual length to iBootStage1, otherwise
+         * the backup GPT appears beyond the end of its block device.
+         */
+        HvDisk *d = devid == DEVID_ROOT ? b->root :
+                    devid == DEVID_AUX ? b->aux : NULL;
+        if (!d || (d->size & 511u)) return ~0ull;
+        uint64_t sectors = d->size / 512;
+        static unsigned root_logged, aux_logged;
+        unsigned *logged = devid == DEVID_ROOT ? &root_logged : &aux_logged;
+        if (!__atomic_exchange_n(logged, 1u, __ATOMIC_RELAXED))
+            fprintf(stderr, "bdif-capacity %s: %llu sectors (%llu bytes)\n",
+                    devid == DEVID_ROOT ? "root" : "aux",
+                    (unsigned long long)sectors, (unsigned long long)d->size);
+        return sectors;
+    }
     default: return ~0ull;
     }
 }
