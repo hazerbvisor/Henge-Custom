@@ -26,9 +26,18 @@ upstream = 'da7332e32134f0aa14a67f8cbf67307e68f5367e'
 mouse_fix = 'e740e26fa0efcf62feb10ef85a7ab360281428c0'
 subprocess.run(['git', '-C', str(source), 'merge-base', '--is-ancestor', mouse_fix, 'HEAD'], check=True)
 # The workaround must not alter the shared VM or on-screen mouse contract.
-unchanged = ['ios/Henge/Native/henge-vm.c', 'host/vm.c', 'devices/virtio_input.c',
+unchanged = ['ios/Henge/Native/henge-vm.c', 'devices/virtio_input.c',
              'devices/virtio_input.h', 'ios/Henge/Trackpad.swift']
 subprocess.run(['git', '-C', str(source), 'diff', '--exit-code', upstream, 'HEAD', '--', *unchanged], check=True)
+# This diagnostic branch deliberately changes host/vm.c and devices/bdif.c,
+# but only to report read-only disk geometry and bounded boot-I/O metadata.
+vm_source = (source/'host/vm.c').read_text()
+bdif_source = (source/'devices/bdif.c').read_text()
+for marker in ['hengevm: boot geometry:', 'hengevm: boot GPT:', 'hv_disk_read(&disk, 512, gpt, sizeof gpt)']:
+    require(marker in vm_source, f'Missing boot geometry diagnostic: {marker}')
+for marker in ['bdif-bootio', 'if (devid == DEVID_ROOT) return 0x8000000;']:
+    require(marker in bdif_source, f'Missing boot I/O diagnostic or original discovery value: {marker}')
+subprocess.run(['git', '-C', str(source), 'diff', '--quiet', upstream, 'HEAD', '--', 'ios/Henge/Native/henge-vm.c'], check=True)
 mouse_sources = ['ios/Henge/Hardware.swift', 'ios/Henge/PhysicalMouseButtons.swift', 'ios/Henge/SettingsView.swift']
 gpu_sources = ['devices/pvg_metal.m', 'devices/pvg_lite.c', 'devices/pvg_mac.m', 'devices/pvg_decode.h',
                'ios/Henge/GPUDiagnostics.swift', 'ios/Henge/SessionView.swift', 'ios/Henge/Installer.swift']
@@ -61,6 +70,8 @@ with tempfile.TemporaryDirectory() as tmp:
               helper/'HengeJITHelper', framework/'StikJIT', framework/'Info.plist']:
         require(f.is_file() and f.stat().st_size > 0, f'Missing required bundle file: {f}')
     require(b'avp-ctrr' in (app/'Henge').read_bytes(), 'avp-ctrr implementation missing from app binary')
+    require(b'hengevm: boot geometry:' in (app/'Henge').read_bytes(), 'Boot geometry diagnostics missing from app binary')
+    require(b'bdif-bootio' in (app/'Henge').read_bytes(), 'BDIF boot I/O diagnostics missing from app binary')
     require(b'henge.mouse.swapRightAndMiddle' in (app/'Henge').read_bytes(), 'Compatibility setting missing from compiled app')
     require(b'henge.mouse.swapLeftAndMiddle' not in (app/'Henge').read_bytes(), 'Previous left/middle workaround still present in compiled app')
     require(b'HV_PVG_DIAGNOSTICS' in (app/'Henge').read_bytes(), 'GPU diagnostics missing from compiled renderer')
