@@ -7,9 +7,23 @@ struct MacSettingsView: View {
     @State private var mac: VirtualMac
     @State private var confirmDelete = false
     @State private var movingExport = false
+    @State private var confirmExpand = false
+    @State private var expansionResult: String?
+    @State private var targetGiB: Int
     @AppStorage("henge.cpus") private var cpus = 4
 
-    init(mac: VirtualMac) { _mac = State(initialValue: mac) }
+    init(mac: VirtualMac) {
+        _mac = State(initialValue: mac)
+        _targetGiB = State(initialValue: [128, 256, 512].first(where: { (Int64($0) << 30) > mac.diskBytes }) ?? 512)
+    }
+
+    private var biggerCapacities: [Int] {
+        [128, 256, 512].filter { (Int64($0) << 30) > mac.diskBytes }
+    }
+
+    private var iPadAvailable: Int64? {
+        (try? mac.disk.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]))?.volumeAvailableCapacityForImportantUsage
+    }
 
     var body: some View {
         ScrollView {
@@ -70,13 +84,52 @@ struct MacSettingsView: View {
                 }
 
                 DeskHeading("Storage")
-                VStack(spacing: 11) {
+                VStack(alignment: .leading, spacing: 12) {
                     HStack {
-                        Text("\(ByteText.string(UInt64(max(mac.bytesUsed, 0)))) used").font(.system(size: 16))
+                        Text("Virtual disk capacity").font(.system(size: 16))
                         Spacer()
-                        Text("of \(ByteText.string(UInt64(max(mac.diskBytes, 0))))").font(.system(size: 16)).foregroundStyle(Desk.dim)
+                        Text(ByteText.string(UInt64(max(mac.diskBytes, 0))))
+                            .font(.system(size: 16, weight: .semibold))
                     }
-                    DeskBar(fraction: Double(mac.bytesUsed) / Double(max(mac.diskBytes, 1)))
+                    HStack {
+                        Text("VM image on iPad").font(.system(size: 14)).foregroundStyle(Desk.dim)
+                        Spacer()
+                        Text(ByteText.string(UInt64(max(mac.bytesUsed, 0))))
+                            .font(.system(size: 14)).foregroundStyle(Desk.dim)
+                    }
+                    if let available = iPadAvailable, available >= 0 {
+                        HStack {
+                            Text("Free iPad storage").font(.system(size: 14)).foregroundStyle(Desk.dim)
+                            Spacer()
+                            Text(ByteText.string(UInt64(available)))
+                                .font(.system(size: 14)).foregroundStyle(Desk.dim)
+                        }
+                    }
+                    Text("This is a sparse image: the virtual capacity is a limit, not preallocated iPad storage. macOS free space is different; check it inside the Mac.")
+                        .font(.system(size: 13)).foregroundStyle(Desk.dim)
+
+                    if !biggerCapacities.isEmpty {
+                        Divider().overlay(Desk.hairline)
+                        Picker("Expand to", selection: $targetGiB) {
+                            ForEach(biggerCapacities, id: \.self) { size in
+                                Text("\(size) GiB").tag(size)
+                            }
+                        }
+                        .pickerStyle(.menu)
+
+                        Text("Shut down macOS fully before expanding. An external backup is recommended but optional; resizing a disk or its partitions can risk data loss.")
+                            .font(.system(size: 13)).foregroundStyle(Desk.warn)
+                        Button("Expand virtual disk") { confirmExpand = true }
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(Desk.accentLight)
+                            .disabled(henge_vm_state() != 0 || machines.exporting != nil || machines.importing != nil || Installer.shared.busy)
+                        Text("Only the disk image grows here. macOS GPT partitions and APFS must be expanded separately after boot; no existing data is intentionally rewritten.")
+                            .font(.system(size: 13)).foregroundStyle(Desk.dim)
+                    }
+                    if let expansionResult {
+                        Text(expansionResult)
+                            .font(.system(size: 13)).foregroundStyle(Desk.good)
+                    }
                 }
                 .padding(17)
                 .deskCard()
@@ -97,6 +150,20 @@ struct MacSettingsView: View {
             case .success: machines.lastExport = nil
             case .failure(let error): machines.lastError = error.localizedDescription
             }
+        }
+        .confirmationDialog("Expand \(mac.name)'s virtual disk?", isPresented: $confirmExpand, titleVisibility: .visible) {
+            Button("Expand to \(targetGiB) GiB") {
+                do {
+                    mac = try machines.expandDisk(mac.id, toGiB: targetGiB)
+                    expansionResult = "Disk image expanded to \(targetGiB) GiB. Quit and reopen Henge, then expand the partition and APFS container inside macOS; the new space is NOT yet usable by macOS."
+                    targetGiB = biggerCapacities.first ?? targetGiB
+                } catch {
+                    machines.lastError = error.localizedDescription
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("No backup is required to proceed, but continuing without one risks permanent data loss if the disk or partition update fails. This only grows the offline sparse image. The guest GPT partition map and APFS container still require separate expansion.")
         }
         .confirmationDialog("Delete \(mac.name)?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Delete", role: .destructive) {
