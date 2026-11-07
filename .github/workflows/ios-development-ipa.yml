@@ -1,5 +1,8 @@
-name: Henge M4 GPU fix IPA
+name: Henge M4 storage expansion IPA
 on:
+  push:
+    branches:
+      - feat/henge-expand-sparse-disk-20261108
   workflow_dispatch:
     inputs:
       henge_sha:
@@ -19,7 +22,7 @@ jobs:
       HUSK: ${{ github.workspace }}/Husk
       IOS_DEPS: ${{ github.workspace }}/Husk/build/ios-arm64/sysroot
       HENGE_SHA: ${{ inputs.henge_sha || github.sha }}
-      HUSK_SHA: ${{ inputs.husk_sha }}
+      HUSK_SHA: ${{ inputs.husk_sha || 'afe83d45b31194c4cc9f7b3db7ec2c757db8346e' }}
       HOMEBREW_NO_AUTO_UPDATE: '1'
     steps:
       - name: Checkout build tooling from this fork
@@ -27,7 +30,7 @@ jobs:
         with:
           path: ci
           persist-credentials: false
-      - name: Checkout GPU fix source from this fork
+      - name: Checkout storage expansion and earlier fixes from this fork
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           repository: ${{ github.repository }}
@@ -67,6 +70,38 @@ jobs:
         run: |
           set -euo pipefail
           ./Henge/ios/scripts/check_gpu.sh | tee artifacts/gpu-tests.log
+      - name: Verify sparse file growth on runner without allocating the new capacity
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os, tempfile
+          with tempfile.TemporaryDirectory() as folder:
+              path = os.path.join(folder, "test.img")
+              with open(path, "wb") as out:
+                  out.truncate(64 << 30)
+              before = os.stat(path).st_blocks * 512
+              with open(path, "r+b") as out:
+                  out.truncate(128 << 30)
+              after = os.stat(path)
+              assert after.st_size == (128 << 30)
+              assert after.st_blocks * 512 - before < (16 << 20), "growth allocated too much real storage"
+          print("PASS: sparse extension does not preallocate 128 GiB")
+          PY
+      - name: Verify storage settings and offline resize guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          model = Path("Henge/ios/Henge/Machines.swift").read_text()
+          view = Path("Henge/ios/Henge/MacSettingsView.swift").read_text()
+          for s in ["func expandDisk(", "henge_vm_state() == 0", "truncate(atOffset:", "try handle.synchronize()", "guest GPT/APFS still requires expansion"]:
+              assert s in model, f"Missing storage guard: {s}"
+          for s in ["Expand virtual disk", "Free iPad storage", "I moved a complete backup outside Henge", "APFS must be expanded separately"]:
+              assert s in view, f"Missing UI instruction: {s}"
+          print("PASS: storage resize source guards present")
+          PY
       - name: Install build tools
         shell: bash
         run: |
@@ -104,15 +139,15 @@ jobs:
           # The official script redirects its log before xcodebuild creates this directory.
           mkdir -p ios/build
           ./ios/scripts/package_ipa.sh
-          cp "$HOME/Desktop/Henge.ipa" ../artifacts/Henge-M4-GPUFix.ipa
+          cp "$HOME/Desktop/Henge.ipa" ../artifacts/Henge-M4-StorageExpand.ipa
       - name: Validate packaged IPA and record provenance
         shell: bash
-        run: python3 ci/.github/scripts/validate-ipa.py artifacts/Henge-M4-GPUFix.ipa Henge Husk
+        run: python3 ci/.github/scripts/validate-ipa.py artifacts/Henge-M4-StorageExpand.ipa Henge Husk
       - name: Upload validated IPA
         id: artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: Henge-M4-GPUFix.ipa
+          name: Henge-M4-StorageExpand.ipa
           path: artifacts/
           if-no-files-found: error
           retention-days: 30
