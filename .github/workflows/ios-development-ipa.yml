@@ -1,4 +1,4 @@
-name: Henge M4 mouse fix IPA
+name: Henge M4 GPU fix IPA
 on:
   workflow_dispatch:
     inputs:
@@ -27,7 +27,7 @@ jobs:
         with:
           path: ci
           persist-credentials: false
-      - name: Checkout mouse fix source from this fork
+      - name: Checkout GPU fix source from this fork
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           repository: ${{ github.repository }}
@@ -55,12 +55,18 @@ jobs:
           test "$(git -C Husk rev-parse HEAD)" = "$HUSK_SHA"
           git -C Henge merge-base --is-ancestor f0eec63e9d62966133f861d8b57aedc890437467 HEAD
           git -C Henge merge-base --is-ancestor da7332e32134f0aa14a67f8cbf67307e68f5367e HEAD
+          git -C Henge merge-base --is-ancestor e740e26fa0efcf62feb10ef85a7ab360281428c0 HEAD
           mkdir -p "$HOME/Desktop" artifacts
       - name: Test physical mouse event routing
         shell: bash
         run: |
           set -euo pipefail
           ./Henge/ios/scripts/check_mouse_buttons.sh | tee artifacts/mouse-tests.log
+      - name: Test GPU replay and Metal draw parameters
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./Henge/ios/scripts/check_gpu.sh | tee artifacts/gpu-tests.log
       - name: Install build tools
         shell: bash
         run: |
@@ -98,15 +104,15 @@ jobs:
           # The official script redirects its log before xcodebuild creates this directory.
           mkdir -p ios/build
           ./ios/scripts/package_ipa.sh
-          cp "$HOME/Desktop/Henge.ipa" ../artifacts/Henge-M4-MouseFix.ipa
+          cp "$HOME/Desktop/Henge.ipa" ../artifacts/Henge-M4-GPUFix.ipa
       - name: Validate packaged IPA and record provenance
         shell: bash
-        run: python3 ci/.github/scripts/validate-ipa.py artifacts/Henge-M4-MouseFix.ipa Henge Husk
+        run: python3 ci/.github/scripts/validate-ipa.py artifacts/Henge-M4-GPUFix.ipa Henge Husk
       - name: Upload validated IPA
         id: artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: Henge-M4-MouseFix.ipa
+          name: Henge-M4-GPUFix.ipa
           path: artifacts/
           if-no-files-found: error
           retention-days: 30
@@ -124,4 +130,6 @@ jobs:
           path: |
             Henge/ios/build/*.buildlog
             Husk/build/logs/
+            artifacts/gpu-tests.log
+            artifacts/mouse-tests.log
           if-no-files-found: ignore

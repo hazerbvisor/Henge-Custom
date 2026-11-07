@@ -7,6 +7,8 @@ struct SettingsView: View {
     @AppStorage(HardwareMouse.reverseKey) private var reverseScrolling = false
     @AppStorage(PhysicalMouseButtons.swapKey) private var swapMouseButtons = PhysicalMouseButtons.defaultSwap
 
+    @AppStorage(GPUDiagnostics.enabledKey) private var gpuDiagnostics = false
+
     var body: some View {
         NavigationStack {
             Form {
@@ -47,6 +49,12 @@ struct SettingsView: View {
                     }
                     .listRowBackground(Desk.card)
                 }
+                Section("Graphics") {
+                    Toggle("Collect GPU diagnostics", isOn: $gpuDiagnostics)
+                    Text("Records bounded draw, buffer and pipeline metadata in henge.log. Changes apply when a Mac starts. Turn this off for normal use.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+                .listRowBackground(Desk.card)
                 Section("Log") {
                     ShareLink(item: HengeLog.logFileURL) { Label("Share henge.log", systemImage: "square.and.arrow.up") }
                 }
