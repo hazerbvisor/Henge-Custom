@@ -98,7 +98,7 @@ jobs:
           view = Path("Henge/ios/Henge/MacSettingsView.swift").read_text()
           for s in ["func expandDisk(", "henge_vm_state() == 0", "truncate(atOffset:", "try handle.synchronize()", "guest GPT/APFS still requires expansion"]:
               assert s in model, f"Missing storage guard: {s}"
-          for s in ["Expand virtual disk", "Free iPad storage", "I moved a complete backup outside Henge", "APFS must be expanded separately"]:
+          for s in ["Expand virtual disk", "Free iPad storage", "An external backup is recommended but optional", "APFS must be expanded separately"]:
               assert s in view, f"Missing UI instruction: {s}"
           print("PASS: storage resize source guards present")
           PY
