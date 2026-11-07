@@ -1,8 +1,8 @@
-name: Henge M4 storage expansion IPA
+name: Henge M4 installer disk sizes IPA
 on:
   push:
     branches:
-      - feat/henge-expand-sparse-disk-20261108
+      - feat/installer-select-disk-size-20261108
   workflow_dispatch:
     inputs:
       henge_sha:
@@ -102,6 +102,30 @@ jobs:
               assert s in view, f"Missing UI instruction: {s}"
           print("PASS: storage resize source guards present")
           PY
+      - name: Verify new macOS installation disk size selection
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          screen = Path('Henge/ios/Henge/InstallView.swift').read_text()
+          installer = Path('Henge/ios/Henge/Installer.swift').read_text()
+          checks = [
+            (screen, 'Picker("Disk size", selection: $diskGiB)'),
+            (screen, 'ForEach(Installer.diskSizesGiB'),
+            (screen, 'diskGiB: diskGiB'),
+            (installer, 'static let diskSizesGiB = [64, 128, 256, 512]'),
+            (installer, 'static let defaultDiskGiB = 128'),
+            (installer, 'guard Self.diskBytes(forGiB: diskGiB) != nil'),
+            (installer, 'diskBytes: capacity'),
+            (installer, 'truncate(atOffset: UInt64(capacity))'),
+            (installer, 'actualSize?.int64Value == capacity'),
+          ]
+          for source, text in checks:
+              assert text in source, f"Installer capacity wiring missing: {text}"
+          assert 'truncate(atOffset: UInt64(64) << 30)' not in installer
+          print('PASS: selectable new-VM disk sizes are passed to the sparse disk image')
+          PY
       - name: Install build tools
         shell: bash
         run: |
@@ -139,15 +163,15 @@ jobs:
           # The official script redirects its log before xcodebuild creates this directory.
           mkdir -p ios/build
           ./ios/scripts/package_ipa.sh
-          cp "$HOME/Desktop/Henge.ipa" ../artifacts/Henge-M4-StorageExpand.ipa
+          cp "$HOME/Desktop/Henge.ipa" ../artifacts/Henge-M4-Installer-DiskSizes.ipa
       - name: Validate packaged IPA and record provenance
         shell: bash
-        run: python3 ci/.github/scripts/validate-ipa.py artifacts/Henge-M4-StorageExpand.ipa Henge Husk
+        run: python3 ci/.github/scripts/validate-ipa.py artifacts/Henge-M4-Installer-DiskSizes.ipa Henge Husk
       - name: Upload validated IPA
         id: artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: Henge-M4-StorageExpand.ipa
+          name: Henge-M4-Installer-DiskSizes.ipa
           path: artifacts/
           if-no-files-found: error
           retention-days: 30
