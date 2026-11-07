@@ -8,15 +8,11 @@ xcrun --sdk macosx clang -std=c11 -Wall -Wextra -Werror -Idevices \
   tests/test_pvg_decode.c -o build/gpu-check/test-pvg-decode
 build/gpu-check/test-pvg-decode
 compile_replay() {
-  local output="$1" replay_source="${2:-}"
-  local replay_defines=()
-  if [[ -n "$replay_source" ]]; then
-    [[ "$replay_source" = /* ]] || replay_source="$PWD/$replay_source"
-    replay_defines+=("-DPVG_REPLAY_SOURCE=\"$replay_source\"")
-  fi
+  local output="$1" replay_source="${2:-$PWD/devices/pvg_metal.m}"
+  [[ "$replay_source" = /* ]] || replay_source="$PWD/$replay_source"
   xcrun --sdk macosx clang -fobjc-arc -O1 -g -std=c11 -Wall -Wextra \
     -Wno-unused-parameter -Wno-deprecated-declarations -Wno-shadow-ivar \
-    -Icore -Ihost -Idevices "${replay_defines[@]}" tests/test_pvg_replay.m \
+    -Icore -Ihost -Idevices "-DPVG_REPLAY_SOURCE=\"$replay_source\"" tests/test_pvg_replay.m \
     -framework Foundation -framework Metal -framework QuartzCore -framework IOSurface \
     -framework CoreGraphics -framework ImageIO -framework UniformTypeIdentifiers \
     -o "$output"
