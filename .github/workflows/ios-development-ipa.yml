@@ -1,0 +1,120 @@
+name: Henge development IPA
+on:
+  workflow_dispatch:
+    inputs:
+      henge_sha:
+        description: Exact upstream main commit (must include f0eec63)
+        required: true
+        default: da7332e32134f0aa14a67f8cbf67307e68f5367e
+      husk_sha:
+        description: Exact Husk dependency commit
+        required: true
+        default: afe83d45b31194c4cc9f7b3db7ec2c757db8346e
+permissions:
+  contents: read
+jobs:
+  ipa:
+    runs-on: xcode-27
+    timeout-minutes: 90
+    env:
+      HUSK: ${{ github.workspace }}/Husk
+      IOS_DEPS: ${{ github.workspace }}/Husk/build/ios-arm64/sysroot
+      HENGE_SHA: ${{ inputs.henge_sha }}
+      HUSK_SHA: ${{ inputs.husk_sha }}
+      HOMEBREW_NO_AUTO_UPDATE: '1'
+    steps:
+      - name: Checkout build tooling from this fork
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          path: ci
+          persist-credentials: false
+      - name: Checkout official Henge source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: Leviidev/Henge
+          ref: ${{ inputs.henge_sha }}
+          fetch-depth: 0
+          path: Henge
+          persist-credentials: false
+      - name: Checkout pinned Husk dependencies
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: Leviidev/Husk
+          ref: ${{ inputs.husk_sha }}
+          path: Husk
+          persist-credentials: false
+      - name: Verify source and ARM64 Xcode 27 toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$HENGE_SHA" =~ ^[0-9a-f]{40}$ && "$HUSK_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(uname -m)" = arm64
+          xcodebuild -version
+          xcodebuild -version | head -1 | grep -E '^Xcode (27|[3-9][0-9])([. ]|$)'
+          xcrun --sdk iphoneos --show-sdk-version
+          test "$(git -C Henge rev-parse HEAD)" = "$HENGE_SHA"
+          test "$(git -C Husk rev-parse HEAD)" = "$HUSK_SHA"
+          git -C Henge merge-base --is-ancestor f0eec63e9d62966133f861d8b57aedc890437467 HEAD
+          git -C Henge merge-base --is-ancestor HEAD origin/main
+          mkdir -p "$HOME/Desktop" artifacts
+      - name: Install build tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          for tool in xcodegen cmake meson ninja pkg-config autoconf automake libtool; do
+            brew list --versions "$tool" >/dev/null || brew install "$tool"
+          done
+          command -v rustup || { curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.92.0; }
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          "$HOME/.cargo/bin/rustup" toolchain install 1.92.0 --profile minimal
+          "$HOME/.cargo/bin/rustup" default 1.92.0
+          "$HOME/.cargo/bin/rustup" target add aarch64-apple-ios
+      - name: Build Husk networking libraries and remote pairing
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$HUSK"
+          ./scripts/fetch_sources.sh
+          ./scripts/build_ios.sh libffi glib libslirp
+          ./scripts/build_rppairing_ios.sh
+          # StikJIT is the official prebuilt framework vendored by Husk.
+          test -s src/app/Frameworks/StikJIT.xcframework/ios-arm64/StikJIT.framework/StikJIT
+          for lib in libslirp libglib-2.0 libintl libpcre2-8; do
+            test -s "build/ios-arm64/sysroot/lib/$lib.a"
+          done
+      - name: Build full Henge and package with official scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd Henge
+          ./ios/scripts/fetch_deps.sh
+          ./tools/build_ios_restore.sh
+          make ios-lib
+          ./ios/scripts/package_ipa.sh
+          cp "$HOME/Desktop/Henge.ipa" ../artifacts/Henge.ipa
+      - name: Validate packaged IPA and record provenance
+        shell: bash
+        run: python3 ci/.github/scripts/validate-ipa.py artifacts/Henge.ipa Henge Husk
+      - name: Upload validated IPA
+        id: artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: Henge-IPA-${{ inputs.henge_sha }}
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Record artifact link
+        env:
+          ARTIFACT_URL: ${{ steps.artifact.outputs.artifact-url }}
+        run: |
+          echo "Validated IPA: $ARTIFACT_URL" >> "$GITHUB_STEP_SUMMARY"
+          cat artifacts/build-manifest.json >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Henge-build-diagnostics
+          path: |
+            Henge/ios/build/*.buildlog
+            Husk/build/logs/
+          if-no-files-found: ignore
