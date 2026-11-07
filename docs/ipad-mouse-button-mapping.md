@@ -1,7 +1,7 @@
 # Physical mouse compatibility on iPad
 
 This fork provides a configurable workaround for the reported left/middle reversal
-on an iPad Air M4 (iPad16,8), iPadOS 27.0.1. It is enabled by default in this build.
+on an iPad Air M4 (iPad16,8), iPadOS 27.0.1. It is enabled by default on iPad in this build; iPhones retain the original mapping.
 In **Settings > Mouse and Trackpad**, turn **Swap physical left and middle
 buttons** off for a mouse or Magic Keyboard trackpad that already works normally.
 Changes apply when a Mac session starts; fully close and reopen Henge before

@@ -106,7 +106,7 @@ final class HardwareMouse {
 
     private var observers: [NSObjectProtocol] = []
     private var mice: [GCMouse] = []
-    private var buttons = PhysicalMouseButtons(swapsLeftAndMiddle: PhysicalMouseButtons.defaultSwap)
+    private var buttons = PhysicalMouseButtons(swapsLeftAndMiddle: false)
     private var buttonsLogged = 0
     private var restX: Float = 0, restY: Float = 0
     private var speed: Float = 1
@@ -118,8 +118,8 @@ final class HardwareMouse {
         speed = defaults.object(forKey: Self.speedKey) == nil ? 1 : Float(defaults.double(forKey: Self.speedKey))
         reverse = defaults.bool(forKey: Self.reverseKey)
         releaseButtons()
-        let swap = defaults.object(forKey: PhysicalMouseButtons.swapKey) == nil
-            ? PhysicalMouseButtons.defaultSwap : defaults.bool(forKey: PhysicalMouseButtons.swapKey)
+        let swap = Device.isPad && (defaults.object(forKey: PhysicalMouseButtons.swapKey) == nil
+            ? PhysicalMouseButtons.defaultSwap : defaults.bool(forKey: PhysicalMouseButtons.swapKey))
         buttons = PhysicalMouseButtons(swapsLeftAndMiddle: swap)
         buttonsLogged = 0
         HengeLog.log("input", "physical mouse mapping: swap left/middle \(swap ? "on (left=2, right=1, middle=0)" : "off (left=0, right=1, middle=2)")")
