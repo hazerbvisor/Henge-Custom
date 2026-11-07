@@ -5,6 +5,9 @@ struct SettingsView: View {
     @AppStorage(JITCoordinator.autoEnableKey) private var jitAtLaunch = false
     @AppStorage(HardwareMouse.speedKey) private var mouseSpeed = 1.0
     @AppStorage(HardwareMouse.reverseKey) private var reverseScrolling = false
+    @AppStorage(PhysicalMouseButtons.swapKey) private var swapMouseButtons = PhysicalMouseButtons.defaultSwap
+
+    @AppStorage(GPUDiagnostics.enabledKey) private var gpuDiagnostics = false
 
     var body: some View {
         NavigationStack {
@@ -38,11 +41,20 @@ struct SettingsView: View {
                             Slider(value: $mouseSpeed, in: 0.5...3)
                         }
                         Toggle("Reverse scrolling", isOn: $reverseScrolling)
+                        Toggle("Swap physical right and middle buttons", isOn: $swapMouseButtons)
+                        Text("Use this if a mouse's right-click acts as middle-click. Turn it off for mice that already click correctly. Left-click and touch controls are unchanged.")
+                            .font(.footnote).foregroundStyle(.secondary)
                         Text("A Magic Keyboard or a Bluetooth mouse moves the Mac's pointer. Changes apply the next time a Mac starts.")
                             .font(.footnote).foregroundStyle(.secondary)
                     }
                     .listRowBackground(Desk.card)
                 }
+                Section("Graphics") {
+                    Toggle("Collect GPU diagnostics", isOn: $gpuDiagnostics)
+                    Text("Records bounded draw, buffer and pipeline metadata in henge.log. Changes apply when a Mac starts. Turn this off for normal use.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+                .listRowBackground(Desk.card)
                 Section("Log") {
                     ShareLink(item: HengeLog.logFileURL) { Label("Share henge.log", systemImage: "square.and.arrow.up") }
                 }
