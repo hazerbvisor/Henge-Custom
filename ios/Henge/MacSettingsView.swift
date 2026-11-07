@@ -8,7 +8,6 @@ struct MacSettingsView: View {
     @State private var confirmDelete = false
     @State private var movingExport = false
     @State private var confirmExpand = false
-    @State private var backupConfirmed = false
     @State private var expansionResult: String?
     @State private var targetGiB: Int
     @AppStorage("henge.cpus") private var cpus = 4
@@ -118,14 +117,12 @@ struct MacSettingsView: View {
                         }
                         .pickerStyle(.menu)
 
-                        Text("Shut down macOS, export this Mac, and move its backup OUT of Henge before proceeding. A backup stored inside Henge can be lost if the app is deleted.")
+                        Text("Shut down macOS fully before expanding. An external backup is recommended but optional; resizing a disk or its partitions can risk data loss.")
                             .font(.system(size: 13)).foregroundStyle(Desk.warn)
-                        Toggle("I moved a complete backup outside Henge", isOn: $backupConfirmed)
-                            .font(.system(size: 14))
                         Button("Expand virtual disk") { confirmExpand = true }
                             .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(backupConfirmed ? Desk.accentLight : Desk.dim)
-                            .disabled(!backupConfirmed || henge_vm_state() != 0 || machines.exporting != nil || machines.importing != nil || Installer.shared.busy)
+                            .foregroundStyle(Desk.accentLight)
+                            .disabled(henge_vm_state() != 0 || machines.exporting != nil || machines.importing != nil || Installer.shared.busy)
                         Text("Only the disk image grows here. macOS GPT partitions and APFS must be expanded separately after boot; no existing data is intentionally rewritten.")
                             .font(.system(size: 13)).foregroundStyle(Desk.dim)
                     }
@@ -159,7 +156,6 @@ struct MacSettingsView: View {
                 do {
                     mac = try machines.expandDisk(mac.id, toGiB: targetGiB)
                     expansionResult = "Disk image expanded to \(targetGiB) GiB. Quit and reopen Henge, then expand the partition and APFS container inside macOS; the new space is NOT yet usable by macOS."
-                    backupConfirmed = false
                     targetGiB = biggerCapacities.first ?? targetGiB
                 } catch {
                     machines.lastError = error.localizedDescription
@@ -167,7 +163,7 @@ struct MacSettingsView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This only grows the offline sparse disk image. Ensure your backup is outside Henge. You must repair/extend the GPT partition map and then expand the APFS container in macOS separately.")
+            Text("No backup is required to proceed, but continuing without one risks permanent data loss if the disk or partition update fails. This only grows the offline sparse image. The guest GPT partition map and APFS container still require separate expansion.")
         }
         .confirmationDialog("Delete \(mac.name)?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Delete", role: .destructive) {
