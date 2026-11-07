@@ -65,10 +65,11 @@ jobs:
             brew list --versions "$tool" >/dev/null || brew install "$tool"
           done
           command -v rustup || { curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.92.0; }
-          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
-          "$HOME/.cargo/bin/rustup" toolchain install 1.92.0 --profile minimal
-          "$HOME/.cargo/bin/rustup" default 1.92.0
-          "$HOME/.cargo/bin/rustup" target add aarch64-apple-ios
+          export PATH="$HOME/.cargo/bin:$PATH"
+          rustup toolchain install 1.92.0 --profile minimal
+          rustup default 1.92.0
+          rustup target add aarch64-apple-ios
+          dirname "$(rustup which cargo)" >> "$GITHUB_PATH"
       - name: Build Husk networking libraries and remote pairing
         shell: bash
         run: |
