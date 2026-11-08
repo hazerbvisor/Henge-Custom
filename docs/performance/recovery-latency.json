@@ -1,0 +1,47 @@
+[
+  {
+    "round": 0,
+    "build": "baseline",
+    "output": "bench_calls     native   0.584 ms  jit   2.823 ms   4.84x  (1 dispatcher entries, 0 slow loads/stores)\nlatency bench_calls n=51 median_ms=3.133 p95_ms=3.505 p99_ms=4.076\nbench_mem       native   0.541 ms  jit   2.106 ms   3.90x  (1 dispatcher entries, 0 slow loads/stores)\nlatency bench_mem n=51 median_ms=2.138 p95_ms=2.348 p99_ms=2.920\nbench_dispatch  native   0.786 ms  jit   4.237 ms   5.39x  (1 dispatcher entries, 0 slow loads/stores)\nlatency bench_dispatch n=51 median_ms=4.295 p95_ms=5.079 p99_ms=5.435\nbench_loop      native   1.099 ms  jit   2.063 ms   1.88x  (1 dispatcher entries, 0 slow loads/stores)\nlatency bench_loop n=51 median_ms=2.336 p95_ms=3.608 p99_ms=4.660\n"
+  },
+  {
+    "round": 0,
+    "build": "affected",
+    "output": "bench_calls     native   0.753 ms  jit   3.219 ms   4.28x  (1 dispatcher entries, 0 slow loads/stores)\nlatency bench_calls n=51 median_ms=3.610 p95_ms=4.232 p99_ms=5.595\nbench_mem       native   0.556 ms  jit   2.109 ms   3.79x  (1 dispatcher entries, 0 slow loads/stores)\nlatency bench_mem n=51 median_ms=2.370 p95_ms=2.682 p99_ms=3.271\nbench_dispatch  native   0.821 ms  jit   4.229 ms   5.15x  (1 dispatcher entries, 0 slow loads/stores)\nlatency bench_dispatch n=51 median_ms=4.420 p95_ms=5.148 p99_ms=6.025\nbench_loop      native   1.123 ms  jit   2.065 ms   1.84x  (1 dispatcher entries, 0 slow loads/stores)\nlatency bench_loop n=51 median_ms=2.093 p95_ms=2.649 p99_ms=4.853\n"
+  },
+  {
+    "round": 0,
+    "build": "recovery",
+    "output": "bench_calls     native   0.644 ms  jit   3.138 ms   4.87x  (1 dispatcher entries, 0 slow loads/stores)\nlatency bench_calls n=51 median_ms=3.206 p95_ms=3.702 p99_ms=4.398\nbench_mem       native   0.555 ms  jit   2.147 ms   3.87x  (1 dispatcher entries, 0 slow loads/stores)\nlatency bench_mem n=51 median_ms=2.188 p95_ms=2.472 p99_ms=2.755\nbench_dispatch  native   0.788 ms  jit   4.246 ms   5.39x  (1 dispatcher entries, 0 slow loads/stores)\nlatency bench_dispatch n=51 median_ms=4.346 p95_ms=4.826 p99_ms=4.943\nbench_loop      native   1.097 ms  jit   2.061 ms   1.88x  (1 dispatcher entries, 0 slow loads/stores)\nlatency bench_loop n=51 median_ms=2.080 p95_ms=2.325 p99_ms=2.474\n"
+  },
+  {
+    "round": 1,
+    "build": "recovery",
+    "output": "bench_calls     native   0.646 ms  jit   3.137 ms   4.86x  (1 dispatcher entries, 0 slow loads/stores)\nlatency bench_calls n=51 median_ms=3.170 p95_ms=3.712 p99_ms=4.274\nbench_mem       native   0.545 ms  jit   2.105 ms   3.86x  (1 dispatcher entries, 0 slow loads/stores)\nlatency bench_mem n=51 median_ms=2.129 p95_ms=2.569 p99_ms=2.668\nbench_dispatch  native   0.803 ms  jit   4.255 ms   5.30x  (1 dispatcher entries, 0 slow loads/stores)\nlatency bench_dispatch n=51 median_ms=4.384 p95_ms=5.639 p99_ms=6.364\nbench_loop      native   1.114 ms  jit   2.062 ms   1.85x  (1 dispatcher entries, 0 slow loads/stores)\nlatency bench_loop n=51 median_ms=2.186 p95_ms=2.551 p99_ms=4.151\n"
+  },
+  {
+    "round": 1,
+    "build": "affected",
+    "output": "bench_calls     native   0.651 ms  jit   3.137 ms   4.82x  (1 dispatcher entries, 0 slow loads/stores)\nlatency bench_calls n=51 median_ms=3.198 p95_ms=4.027 p99_ms=4.968\nbench_mem       native   0.559 ms  jit   2.106 ms   3.77x  (1 dispatcher entries, 0 slow loads/stores)\nlatency bench_mem n=51 median_ms=2.156 p95_ms=2.532 p99_ms=2.830\nbench_dispatch  native   0.798 ms  jit   4.244 ms   5.32x  (1 dispatcher entries, 0 slow loads/stores)\nlatency bench_dispatch n=51 median_ms=4.341 p95_ms=5.193 p99_ms=6.198\nbench_loop      native   1.103 ms  jit   2.062 ms   1.87x  (1 dispatcher entries, 0 slow loads/stores)\nlatency bench_loop n=51 median_ms=2.080 p95_ms=2.281 p99_ms=2.341\n"
+  },
+  {
+    "round": 1,
+    "build": "baseline",
+    "output": "bench_calls     native   0.643 ms  jit   3.115 ms   4.85x  (1 dispatcher entries, 0 slow loads/stores)\nlatency bench_calls n=51 median_ms=3.156 p95_ms=3.428 p99_ms=4.222\nbench_mem       native   0.545 ms  jit   2.098 ms   3.85x  (1 dispatcher entries, 0 slow loads/stores)\nlatency bench_mem n=51 median_ms=2.119 p95_ms=2.192 p99_ms=2.622\nbench_dispatch  native   0.817 ms  jit   4.222 ms   5.17x  (1 dispatcher entries, 0 slow loads/stores)\nlatency bench_dispatch n=51 median_ms=4.291 p95_ms=4.799 p99_ms=5.648\nbench_loop      native   1.119 ms  jit   2.061 ms   1.84x  (1 dispatcher entries, 0 slow loads/stores)\nlatency bench_loop n=51 median_ms=2.081 p95_ms=2.378 p99_ms=2.884\n"
+  },
+  {
+    "round": 2,
+    "build": "baseline",
+    "output": "bench_calls     native   0.656 ms  jit   3.131 ms   4.77x  (1 dispatcher entries, 0 slow loads/stores)\nlatency bench_calls n=51 median_ms=3.213 p95_ms=3.766 p99_ms=4.046\nbench_mem       native   0.561 ms  jit   2.108 ms   3.76x  (1 dispatcher entries, 0 slow loads/stores)\nlatency bench_mem n=51 median_ms=2.136 p95_ms=2.553 p99_ms=3.424\nbench_dispatch  native   0.802 ms  jit   4.210 ms   5.25x  (1 dispatcher entries, 0 slow loads/stores)\nlatency bench_dispatch n=51 median_ms=4.279 p95_ms=4.920 p99_ms=5.339\nbench_loop      native   1.106 ms  jit   2.061 ms   1.86x  (1 dispatcher entries, 0 slow loads/stores)\nlatency bench_loop n=51 median_ms=2.080 p95_ms=2.333 p99_ms=2.401\n"
+  },
+  {
+    "round": 2,
+    "build": "affected",
+    "output": "bench_calls     native   0.652 ms  jit   3.137 ms   4.81x  (1 dispatcher entries, 0 slow loads/stores)\nlatency bench_calls n=51 median_ms=3.172 p95_ms=3.814 p99_ms=3.971\nbench_mem       native   0.548 ms  jit   2.142 ms   3.91x  (1 dispatcher entries, 0 slow loads/stores)\nlatency bench_mem n=51 median_ms=2.164 p95_ms=2.419 p99_ms=2.482\nbench_dispatch  native   0.789 ms  jit   4.242 ms   5.37x  (1 dispatcher entries, 0 slow loads/stores)\nlatency bench_dispatch n=51 median_ms=4.296 p95_ms=4.612 p99_ms=4.696\nbench_loop      native   1.104 ms  jit   2.063 ms   1.87x  (1 dispatcher entries, 0 slow loads/stores)\nlatency bench_loop n=51 median_ms=2.078 p95_ms=2.288 p99_ms=2.377\n"
+  },
+  {
+    "round": 2,
+    "build": "recovery",
+    "output": "bench_calls     native   0.659 ms  jit   3.116 ms   4.73x  (1 dispatcher entries, 0 slow loads/stores)\nlatency bench_calls n=51 median_ms=3.179 p95_ms=4.050 p99_ms=4.432\nbench_mem       native   0.557 ms  jit   2.136 ms   3.83x  (1 dispatcher entries, 0 slow loads/stores)\nlatency bench_mem n=51 median_ms=2.180 p95_ms=2.923 p99_ms=3.955\nbench_dispatch  native   0.785 ms  jit   4.243 ms   5.40x  (1 dispatcher entries, 0 slow loads/stores)\nlatency bench_dispatch n=51 median_ms=4.277 p95_ms=4.512 p99_ms=4.921\nbench_loop      native   1.100 ms  jit   2.070 ms   1.88x  (1 dispatcher entries, 0 slow loads/stores)\nlatency bench_loop n=51 median_ms=2.076 p95_ms=2.093 p99_ms=2.134\n"
+  }
+]

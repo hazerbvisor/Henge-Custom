@@ -41,6 +41,7 @@ static int cursor_scale(void) {
 
 #include "pvg_lite.h"
 #include "pvg_decode.h"
+#include "perf_report.h"
 
 #if !TARGET_OS_IPHONE
 #import <CoreGraphics/CoreGraphics.h>
@@ -131,6 +132,10 @@ enum { OBJ_BUFFER = 1, OBJ_TEXTURE = 2, OBJ_FUNCTION = 6, OBJ_SERIALIZED = 7, OB
     BOOL tess_factors; /* so is a tessellation factor buffer */
     uint32_t pre_raster_samples, pre_imageblock, pre_threadgroup, pre_tile_w, pre_tile_h; /* for the next pass */
     BOOL tracing; /* HV_PVG_TRACE_FILE exists: say what each exec draws */
+    BOOL perf_enabled;
+    BOOL tally_enabled, cursor_log, heap_log;
+    HvPerfDist perf_queue, perf_processing, perf_frames; /* worker / presenter owned */
+    uint64_t perf_last_frame;
     BOOL diagnostics; /* HV_PVG_DIAGNOSTICS: metadata only, bounded for the session */
     uint32_t diag_details, diag_warnings, diag_summaries;
     uint64_t diag_records, diag_invalid, diag_missing, diag_unsupported, diag_suppressed;
@@ -536,7 +541,7 @@ static MTLTextureDescriptor *descriptor_v2(const uint8_t *d) {
     o->vpage = h.vpage;
     o->guest_backed = YES;
     heap_bytes += h.length;
-    if (getenv("HV_PVG_HEAP_LOG")) fprintf(stderr, "hengevm: pvg-metal: heap %llu KB at page %u, flags %x, now %llu MB of heaps\n", h.length >> 10, h.vpage, h.flags, heap_bytes >> 20);
+    if (heap_log) fprintf(stderr, "hengevm: pvg-metal: heap %llu KB at page %u, flags %x, now %llu MB of heaps\n", h.length >> 10, h.vpage, h.flags, heap_bytes >> 20);
 }
 
 /* A buffer in a heap: {heap, offset, length}. */
@@ -1802,7 +1807,7 @@ typedef struct {
     if (!trace_checked) trace_checked = YES, trace_file = getenv("HV_PVG_TRACE_FILE");
     tracing = trace_file && access(trace_file, F_OK) == 0;
     if (tracing) fprintf(stderr, "trace: exec task %u, %u resources, %u buffers\n", task, nres, nbuf);
-    double t_begin = now_seconds();
+    double t_begin = diagnostics ? now_seconds() : 0;
     id<MTLCommandBuffer> cb = [queue commandBuffer];
     id<MTLBlitCommandEncoder> blit = nil;
     BOOL sync_after = NO;
@@ -1811,7 +1816,7 @@ typedef struct {
         if (!o) continue;
         if (o->mapped) refresh_pages(self, task, o);
         if (o->surface) sync_iosurface(o->surface);
-        if (getenv("HV_PVG_TALLY") && (o->entry[0] & 0xff) == OBJ_MAPPED_TEXTURE) {
+        if (tally_enabled && (o->entry[0] & 0xff) == OBJ_MAPPED_TEXTURE) {
             static uint32_t seen[256];
             uint32_t f = res[i * 2 + 1] & 0xff, key = res[i * 2] & 0xff;
             if (seen[key] != f + 1) {
@@ -1912,11 +1917,11 @@ typedef struct {
         }
         [back endEncoding];
     }
-    double t1 = now_seconds();
+    double t1 = diagnostics ? now_seconds() : 0;
     [self commit:cb channel:ch stamp:stamp complete:YES];
-    double t2 = now_seconds();
-    encode_time += t1 - t_begin, gpu_wait_time += t2 - t1;
-    if (++execs % 2000 == 0) {
+    double t2 = diagnostics ? now_seconds() : 0;
+    if (diagnostics) encode_time += t1 - t_begin, gpu_wait_time += t2 - t1;
+    if (++execs % 2000 == 0 && diagnostics) {
         static double t0;
         if (!t0) t0 = now_seconds();
         fprintf(stderr, "hengevm: pvg-metal: %llu execs, %llu draws, %llu failed, %llu synced, %llu remaps, %.0f s; encoding %.2f s, waiting for the GPU %.2f s\n", (unsigned long long)execs, (unsigned long long)draws, (unsigned long long)failed, (unsigned long long)synced, (unsigned long long)remaps, now_seconds() - t0, encode_time, gpu_wait_time);
@@ -1970,7 +1975,7 @@ static const uint8_t *half_to_byte(void) {
     cursor = bits, cursor_w = w, cursor_h = h, cursor_stride = (uint32_t)stride, cursor_hot_x = hx, cursor_hot_y = hy;
     cursor_tex = glyph;
     os_unfair_lock_unlock(&screen_lock);
-    if (getenv("HV_PVG_CURSOR_LOG")) fprintf(stderr, "pvgcursor glyph %ux%u hot %d,%d stride %u first alpha %u\n", w, h, hx, hy, (uint32_t)stride, bits[(size_t)(h / 2) * stride + (size_t)(w / 2) * 4 + 3]);
+    if (cursor_log) fprintf(stderr, "pvgcursor glyph %ux%u hot %d,%d stride %u first alpha %u\n", w, h, hx, hy, (uint32_t)stride, bits[(size_t)(h / 2) * stride + (size_t)(w / 2) * 4 + 3]);
     [self drawCursor];
 }
 
@@ -1994,7 +1999,7 @@ static const uint8_t *half_to_byte(void) {
     const uint8_t *page = hv_pvg_lite_display_page(lite);
     if (!page || !cursor || !(cursor_shown || page[0xe04])) return;
     uint32_t where = __atomic_load_n((const uint32_t *)(page + 0xe00), __ATOMIC_ACQUIRE);
-    if (getenv("HV_PVG_CURSOR_LOG")) {
+    if (cursor_log) {
         static uint32_t last;
         if (where != last) fprintf(stderr, "pvgcursor at %u,%u shown %d flag %d\n", where & 0xffff, where >> 16, cursor_shown, page[0xe04]);
         last = where;
@@ -2262,6 +2267,7 @@ static NSString *const screen_shaders = @"#include <metal_stdlib>\n"
             }];
         }
 #endif
+        BOOL perf_presented = NO;
         // Serialize the final check and commit with set_layer: a switch that has
         // returned must not be followed by a commit to its old target.
         os_unfair_lock_lock(&screen_lock);
@@ -2269,10 +2275,18 @@ static NSString *const screen_shaders = @"#include <metal_stdlib>\n"
             [cb presentDrawable:drawable];
             [cb commit];
             gpu_frames++;
+            perf_presented = HV_ENABLE_PERF && perf_enabled;
         } else {
             screen_dirty = YES;
         }
         os_unfair_lock_unlock(&screen_lock);
+        if (perf_presented) {
+            uint64_t now = mach_absolute_time();
+            if (perf_last_frame) hv_perf_record(&perf_frames, hv_perf_us(now - perf_last_frame));
+            perf_last_frame = now;
+            if (perf_frames.count && (perf_frames.count % 120) == 0)
+                hv_perf_print("present_commit_interval", &perf_frames);
+        }
     }
 }
 
@@ -2366,6 +2380,11 @@ HvPvgMetal *hv_pvg_metal_create(HvPvgLite *lite) {
         Protocol *proto = objc_getProtocol("MTLDeserializationContext");
         if (proto) class_addProtocol([HvContext class], proto);
         HvReplay *r = [HvReplay new];
+        const char *perf = HV_ENABLE_PERF ? getenv("HV_PERF") : NULL;
+        r->perf_enabled = HV_ENABLE_PERF && perf && !strcmp(perf, "1");
+        r->tally_enabled = getenv("HV_PVG_TALLY") != NULL;
+        r->cursor_log = getenv("HV_PVG_CURSOR_LOG") != NULL;
+        r->heap_log = getenv("HV_PVG_HEAP_LOG") != NULL;
         r->lite = lite;
         r->device = dev;
         r->queue = [dev newCommandQueueWithMaxCommandBufferCount:64];
@@ -2401,8 +2420,11 @@ HvPvgMetal *hv_pvg_metal_create(HvPvgLite *lite) {
 
 void hv_pvg_metal_submit(HvPvgMetal *m, HvPvgLite *lite, uint32_t ch, uint32_t *cmd, uint32_t len) {
     HvReplay *r = (__bridge HvReplay *)m;
+    uint64_t queued = HV_PERF_ACTIVE(r) ? mach_absolute_time() : 0;
     dispatch_async(r->worker, ^{
         @autoreleasepool {
+            uint64_t started = HV_PERF_ACTIVE(r) ? mach_absolute_time() : 0;
+            if (HV_PERF_ACTIVE(r)) hv_perf_record(&r->perf_queue, hv_perf_us(started - queued));
             uint32_t op = cmd[0] & 0xffff, skip = (cmd[0] >> 16) * 8; /* the barriers come first */
             const uint32_t *args = (const uint32_t *)((const uint8_t *)cmd + 12 + skip);
             uint32_t n = len > 12 + skip ? len - 12 - skip : 0;
@@ -2433,7 +2455,7 @@ void hv_pvg_metal_submit(HvPvgMetal *m, HvPvgLite *lite, uint32_t ch, uint32_t *
                         os_unfair_lock_lock(&r->screen_lock);
                         r->cursor_shown = args[1] & 1;
                         os_unfair_lock_unlock(&r->screen_lock);
-                        if (getenv("HV_PVG_CURSOR_LOG")) fprintf(stderr, "pvgcursor show %u\n", args[1]);
+                        if (r->cursor_log) fprintf(stderr, "pvgcursor show %u\n", args[1]);
                         [r drawCursor];
                     }
                 }
@@ -2442,6 +2464,13 @@ void hv_pvg_metal_submit(HvPvgMetal *m, HvPvgLite *lite, uint32_t ch, uint32_t *
             }
             if (!gpu_completes) [r finishChannel:ch stamp:cmd[2]];
             free(cmd);
+            if (HV_PERF_ACTIVE(r)) {
+                hv_perf_record(&r->perf_processing, hv_perf_us(mach_absolute_time() - started));
+                if ((r->perf_processing.count & 0xff) == 0) {
+                    hv_perf_print("pvg_queue", &r->perf_queue);
+                    hv_perf_print("pvg_processing", &r->perf_processing);
+                }
+            }
         }
     });
 }

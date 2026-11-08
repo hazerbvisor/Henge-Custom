@@ -1,4 +1,5 @@
 #include "dispatch.h"
+#include "perf_report.h"
 
 #include <mach/mach.h>
 #include <mach/mach_time.h>
@@ -113,20 +114,27 @@ static void block_dump(const HvBlock *b, const uint32_t *code) {
 
 static HvBlock *lookup(HvCpu *cpu, uint64_t va, uint64_t pa, uint32_t flags, const uint32_t *code, uint32_t avail) {
     HvMachine *m = cpu->m;
+    HvCpuPerf *perf = &cpu->pc_state->perf;
+    if (HV_PERF_ACTIVE(m)) perf->lookups++;
     uint32_t j = (uint32_t)((va >> 2) ^ (va >> 18) ^ ((uint64_t)flags << 13)) & ((1u << HV_JC_BITS) - 1);
     __typeof__(cpu->pc_state->jc[0]) *jc = cpu->pc_state->jc;
     HvBlock *c = jc[j].va == va ? jc[j].b : NULL;
-    if (c && c->pa == pa && c->flags == flags && c->ram->page_gen[c->pg] == c->gen) return c;
+    if (c && c->pa == pa && c->flags == flags && c->ram->page_gen[c->pg] == c->gen) {
+        if (HV_PERF_ACTIVE(m)) perf->front_hits++;
+        return c;
+    }
     uint32_t h = hash_of(va, pa, flags);
     HvRam *ram = hv_ram_lookup(m, pa);
     uint64_t pg = (pa - ram->pa) >> HV_TLB_PAGE_BITS;
     uint32_t gen = __atomic_load_n(&ram->page_gen[pg], __ATOMIC_ACQUIRE);
     HvBlock *b = find(m, h, va, pa, flags, gen);
     if (b) {
+        if (HV_PERF_ACTIVE(m)) perf->hash_hits++;
         jc[j].va = va, jc[j].b = b;
         return b;
     }
 
+    if (HV_PERF_ACTIVE(m)) perf->misses++;
     if (m->flush_pending) goto flush_unlocked;
     /* Writes to this page must take the slow path from now on so we notice them:
        before its code is read (so a write after that, or the IC IVAU after it,
@@ -141,11 +149,15 @@ static HvBlock *lookup(HvCpu *cpu, uint64_t va, uint64_t pa, uint32_t flags, con
     }
     /* Translate without the lock, into this thread's buffer... */
     HvBlock nb = {.va = va, .pa = pa, .flags = flags, .gen = gen, .ram = ram, .pg = pg, .maker = cpu->index + 1, .jit_gen = __atomic_load_n(&m->jit_gen, __ATOMIC_SEQ_CST)};
-    uint64_t t0 = m->stats_interval ? mach_absolute_time() : 0;
+    uint64_t t0 = (m->stats_interval || HV_PERF_ACTIVE(m)) ? mach_absolute_time() : 0;
     if (hv_translate_emit(m, &nb, code, avail) != 0) goto flush_unlocked;
     if (m->stats_interval) {
         m->stats.translate_ticks += mach_absolute_time() - t0;
         m->stats.translated_insns += nb.ninsns;
+    }
+    if (HV_PERF_ACTIVE(m)) {
+        perf->translations++;
+        perf->translate_ticks += mach_absolute_time() - t0;
     }
     /* ...and place it in the region (space is reserved atomically, so no lock either)... */
     size_t used0 = m->jit.used;
@@ -159,8 +171,12 @@ static HvBlock *lookup(HvCpu *cpu, uint64_t va, uint64_t pa, uint32_t flags, con
     block_dump(&nb, code);
     /* ...then take the lock only to publish it. */
     if (pthread_mutex_trylock(&m->tr_mu) != 0) {
-        uint64_t w0 = m->stats_interval ? mach_absolute_time() : 0;
+        uint64_t w0 = (m->stats_interval || HV_PERF_ACTIVE(m)) ? mach_absolute_time() : 0;
         pthread_mutex_lock(&m->tr_mu);
+        if (HV_PERF_ACTIVE(m)) {
+            perf->publish_waits++;
+            perf->publish_wait_ticks += mach_absolute_time() - w0;
+        }
         if (m->stats_interval) {
             m->stats.tr_waits++;
             m->stats.tr_wait_ticks += mach_absolute_time() - w0;
@@ -168,6 +184,7 @@ static HvBlock *lookup(HvCpu *cpu, uint64_t va, uint64_t pa, uint32_t flags, con
     }
     b = find(m, h, va, pa, flags, gen); /* another CPU may have just made it: ours is dropped (its space stays used until a flush) */
     if (b) {
+        if (HV_PERF_ACTIVE(m)) perf->duplicate_translations++;
         pthread_mutex_unlock(&m->tr_mu);
         jc[j].va = va, jc[j].b = b;
         return b;
@@ -408,7 +425,7 @@ void hv_debug_el0_in_kernel(HvCpu *cpu, const char *what) {
                             "miss site %llx\n  recent:", b ? (unsigned long long)b->va : 0ull, b ? b->flags : 0, lo, m->nblocks,
                     (unsigned long long)m->stats.block_flushes, (unsigned long long)cpu->last_stub,
                     (unsigned long long)cpu->miss_site);
-            for (int k = 15; k >= 0; k--) fprintf(stderr, " %llx", (unsigned long long)m->stats.recent[(m->stats.nrecent - 1 - k) & 15]);
+            for (int k = 15; k >= 0; k--) fprintf(stderr, " %llx", (unsigned long long)cpu->pc_state->recent[(cpu->pc_state->nrecent - 1 - k) & 15]);
             fprintf(stderr, "\n  (%s) el changes, oldest first:\n", what);
             for (int k = 15; k >= 0; k--) {
                 uint32_t i = (m->stats.nelchg - 1 - k) & 15;
@@ -471,6 +488,10 @@ static int wait_for_interrupt(HvCpu *cpu) {
     pthread_mutex_unlock(&p->wake_mu);
     unpark(cpu);
     hv_big_lock(m);
+    if (HV_PERF_ACTIVE(m)) {
+        p->perf.wakes++;
+        p->perf.idle_ticks += mach_absolute_time() - t0;
+    }
     m->stats.wfi++;
     m->stats.wfi_ticks += mach_absolute_time() - t0;
     m->tick(m, cpu);
@@ -936,7 +957,7 @@ static int run_loop(HvCpu *cpu, int one) {
                         last_reason, why, (unsigned long long)cpu->miss_site, (unsigned long long)cpu->elr_el1,
                         (unsigned long long)cpu->spsr_el1, (unsigned long long)cpu->x[30], (unsigned long long)m->stats.fast_resumes);
                 for (int k = 0; k < 16; k++)
-                    fprintf(stderr, " %llx", (unsigned long long)m->stats.recent[(m->stats.nrecent + k) & 15]);
+                    fprintf(stderr, " %llx", (unsigned long long)cpu->pc_state->recent[(cpu->pc_state->nrecent + k) & 15]);
                 fprintf(stderr, "\n");
             }
         }
@@ -1039,7 +1060,7 @@ static int run_loop(HvCpu *cpu, int one) {
         prev_pc = cpu->pc;
         prev_b = b;
         if (m->stats_interval) m->stats.why[why]++;
-        m->stats.recent[m->stats.nrecent++ & 15] = cpu->pc | cpu->el;
+        cpu->pc_state->recent[cpu->pc_state->nrecent++ & 15] = cpu->pc | cpu->el;
         if (why == 5 && m->stats_interval) {
             int kind = 6;
             /* A plain walk: fetching could raise an abort in the guest. */
@@ -1065,7 +1086,23 @@ static int run_loop(HvCpu *cpu, int one) {
         if (m->stats_interval && cpu->index == 0 && (m->stats.blocks & 0xffff) == 0) print_stats(cpu, 0);
         if (m->gen_checks && ((uint64_t)(b->code - m->jit.base) >= m->jit.used || b->jit_gen != __atomic_load_n(&m->jit_gen, __ATOMIC_SEQ_CST)))
             fprintf(stderr, "hengevm: cpu %u entering %p (rx+%llx, used %llx) for va %llx: block gen %u, now %u, maker %u\n", cpu->index, (void *)b->code, (unsigned long long)(b->code - m->jit.base) * 4, (unsigned long long)m->jit.used * 4, (unsigned long long)b->va, b->jit_gen, m->jit_gen, b->maker);
+        uint64_t perf_start = HV_PERF_ACTIVE(m) ? mach_absolute_time() : 0;
         hv_enter(cpu, b->code);
+        if (HV_PERF_ACTIVE(m)) {
+            HvCpuPerf *p = &cpu->pc_state->perf;
+            p->execute_ticks += mach_absolute_time() - perf_start;
+            if ((++p->entries & 0xffff) == 0) {
+                /* Integer-only: the guest FP state is still live here. */
+                fprintf(stderr, "perf cpu=%u entries=%llu lookup=%llu front=%llu hash=%llu miss=%llu translated=%llu duplicate=%llu translate_us=%llu residency_us=%llu wakes=%llu idle_us=%llu publish_waits=%llu publish_wait_us=%llu\n",
+                        cpu->index, (unsigned long long)p->entries, (unsigned long long)p->lookups,
+                        (unsigned long long)p->front_hits, (unsigned long long)p->hash_hits,
+                        (unsigned long long)p->misses, (unsigned long long)p->translations,
+                        (unsigned long long)p->duplicate_translations, (unsigned long long)hv_perf_us(p->translate_ticks),
+                        (unsigned long long)hv_perf_us(p->execute_ticks), (unsigned long long)p->wakes,
+                        (unsigned long long)hv_perf_us(p->idle_ticks), (unsigned long long)p->publish_waits,
+                        (unsigned long long)hv_perf_us(p->publish_wait_ticks));
+            }
+        }
 
         if (cpu->exit_reason == HV_EXIT_BRANCH && cpu->last_stub && m->chain) {
             pending_chain = (uint64_t *)cpu->last_stub;

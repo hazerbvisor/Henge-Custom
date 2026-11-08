@@ -71,6 +71,8 @@ with tempfile.TemporaryDirectory() as tmp:
     for f in [app/'Henge', app/'henge-jit.js', app/'henge-agent.gz',
               helper/'HengeJITHelper', framework/'StikJIT', framework/'Info.plist']:
         require(f.is_file() and f.stat().st_size > 0, f'Missing required bundle file: {f}')
+    require(b'perf cpu=' not in (app/'Henge').read_bytes(), 'Per-dispatch CPU timing unexpectedly compiled into release')
+    require(b'pvg_processing' not in (app/'Henge').read_bytes(), 'Per-command timing unexpectedly compiled into release')
     require(b'avp-ctrr' in (app/'Henge').read_bytes(), 'avp-ctrr implementation missing from app binary')
     require(b'hengevm: boot geometry:' in (app/'Henge').read_bytes(), 'Boot geometry diagnostics missing from app binary')
     require(b'bdif-bootio' in (app/'Henge').read_bytes(), 'BDIF boot I/O diagnostics missing from app binary')

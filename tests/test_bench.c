@@ -28,7 +28,13 @@ static double now_ms(void) {
     return (double)mach_absolute_time() * tb.numer / tb.denom / 1e6;
 }
 
+static int cmp_double(const void *a, const void *b) {
+    double x = *(const double *)a, y = *(const double *)b;
+    return (x > y) - (x < y);
+}
+
 int main(void) {
+    int latency = getenv("HV_BENCH_LATENCY") != NULL;
     setvbuf(stdout, NULL, _IONBF, 0);
     static HvMachine m;
     if (hv_machine_init(&m, 4 << 20) != 0) return 1;
@@ -46,7 +52,9 @@ int main(void) {
         seed_cpu(&init, i + 1, sp);
         double tn = 1e9, tj = 1e9;
         uint64_t entries = 0, slow = 0;
-        for (int k = 0; k < 5; k++) {
+        double samples[51];
+        int nsamples = 0;
+        for (int k = 0; k < (latency ? 52 : 5); k++) {
             double t0 = now_ms();
             native = init;
             hv_native_run(&native, p->native);
@@ -56,12 +64,18 @@ int main(void) {
             entries = m.stats.blocks - b0;
             slow = m.stats.helper[HV_OP_MEM] - s0;
             double t2 = now_ms();
+            if (k) samples[nsamples++] = t2 - t1;
             if (t1 - t0 < tn) tn = t1 - t0;
             if (k && t2 - t1 < tj) tj = t2 - t1; /* the first JIT run includes translation */
         }
         int bad = i != 1 && (native.x[0] != jit.x[0] || native.x[5] != jit.x[5]); /* bench_mem's results depend on the buffer's earlier contents */
         printf("%-15s native %7.3f ms  jit %7.3f ms  %5.2fx  (%llu dispatcher entries, %llu slow loads/stores)%s\n", p->name, tn, tj, tj / tn,
                (unsigned long long)entries, (unsigned long long)slow, bad ? "  WRONG RESULT" : "");
+        if (latency) {
+            qsort(samples, nsamples, sizeof *samples, cmp_double);
+            printf("latency %s n=%d median_ms=%.3f p95_ms=%.3f p99_ms=%.3f\n",
+                   p->name, nsamples, samples[nsamples / 2], samples[48], samples[50]);
+        }
         failed += bad;
     }
     /* HV_DUMP=file: every translated block (guest VA, guest words, host words) for disassembly. */

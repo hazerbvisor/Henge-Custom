@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 #include "cpu.h"
+#include "perf.h"
 #include "jit_region.h"
 
 /* Guest physical memory: RAM regions backed by host memory, and MMIO regions
@@ -94,10 +95,8 @@ typedef struct HvStats {
     uint64_t reset_why[8];    /* cache drops: full flush, TLBI by ASID, TLBI user VA, TLBI kernel VA, code change, user VA in every ASID (whole user half), keyed filter full, big user range */
     uint64_t why[6];          /* dispatcher entries by cause: chain fill, kick, exception/sysreg, interrupt, cached target, cache miss */
     uint64_t miss_kind[7];    /* cache misses by the branch that missed: RET, BR/BLR, B/BL, conditional, MSR, other, unknown */
-    uint64_t recent[16];      /* debugging: the last blocks the dispatcher entered (pc | el) */
     struct { uint64_t from, to, spsr; uint32_t kind, el; } elchg[16]; /* debugging: last exception entries (kind = type) and ERETs (kind 9) */
     uint32_t nelchg;
-    uint64_t nrecent;
     uint64_t translate_ticks, translated_insns, translated_words; /* time spent translating, guest and host code size */
     uint64_t retrans_va, retrans_vapa; /* translations of a VA (and VA+PA) translated before: diagnostics */
     uint64_t helper[12];      /* by HV_OP_* */
@@ -178,6 +177,8 @@ typedef struct HvPerCpu {
     uint32_t ijc_seq;            /* odd while it checks a block's mapping in its TLB and caches it (hv_ijc_fill_checked) */
     HvTlbStash stash[HV_STASHES];
     uint64_t stash_clock;
+    HvCpuPerf perf;
+    uint64_t recent[16], nrecent; /* owner-only dispatcher history (pc | el) */
 } HvPerCpu;
 
 #define HV_REQ_TLB_ALL 1u   /* drop the whole TLB and branch cache */
@@ -219,6 +220,7 @@ typedef struct HvMachine {
     uint64_t watch_va;   /* debugging: log every write that touches this guest VA (0: off) */
     uint64_t watch_pa;   /* debugging: the same by physical address */
     HvStats stats;
+    int perf_enabled; /* immutable after init: HV_PERF=1 */
     int chain;               /* block chaining and the indirect-branch cache are enabled */
     uint64_t *slots;         /* chainable exits' targets (0: not chained) */
     uint32_t **slot_site;    /* the B in each exit's stub that chaining rewrites to jump to the target */

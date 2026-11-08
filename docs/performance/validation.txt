@@ -1,0 +1,41 @@
+Validation on ARM64 macOS 27.2 (26B123), Apple clang 21.0.0 (clang-2100.4.1.1)
+
+PASS: make B=build/verified test-engine
+PASS: HV_PERF=1 make B=build/verified test-engine
+  classification: 43 cases, 0 failures
+  operands: 36 cases, 0 failures
+  JIT region: MAP_JIT and split aliases both return expected value 42
+  JIT: 10 programs x 2 seeds + PAC and 1 KiB region flush stress, 0 failures
+  memory: 12 programs x 3 modes + MMIO, 0 failures
+  MMU: 58 checks, 0 failures
+  exceptions: 52 checks, 0 failures
+  devices: 103 checks, 0 failures (includes actual 64/128/256/512 GiB BDIF capacities)
+  perf histogram boundaries and percentile ranks: pass
+  dispatcher publication, per-CPU isolation, page invalidation, full flush, history: pass
+PASS: ios/scripts/check_mouse_buttons.sh (Swift module cache required sandbox escalation)
+PASS: make test-display-routing
+PASS: ios/scripts/check_gpu.sh
+  packed payload / span boundaries: pass
+  actual replay recording tests: pass
+  original upstream negative control: expected rejection of truncated draw test
+SKIP: native Metal offscreen pixel tests (no Metal device exposed)
+PASS: seven alternating baseline/optimized native benchmark runs; all correctness checks
+PASS: git diff --check
+PASS: BDIF code/header and host boot diagnostics identical to confirmed cd36195 branch
+PASS: JIT allocator, translated memory permissions, translator, MMU and assembly unchanged
+
+LIMIT: make test also builds desktop executables; missing pkg-config and libslirp.h
+LIMIT: make ios-lib fails: iphoneos SDK cannot be located; no full Xcode / xcodegen
+LIMIT: no boot, on-device Roblox, 4/6-vCPU VM, native GPU pixels or validated IPA
+
+All device fixture IO used new mkdtemp directories in /tmp. No existing VM image
+was opened or changed. Larger test executable stacks are a harness-only setting.
+
+Benchmark binaries SHA256:
+baseline 8709041b9c12cda2cea2b606d566d0b9e052aef81298d0304010d55c1b7948c4
+optimized cbd962f5f8567bddae9574ee5d039cfc2fd1e88fc190d4aec28ee6cc25cdd8a7
+
+Local complete logs (ignored build/ directory): engine-final.log,
+engine-perf-enabled.log, gpu-final.log, mouse-regression.log (initial sandbox
+failure; subsequent escalated invocation passed), display-regression.log,
+ios-build-attempt.log, make-test-attempt.log. See audit.md for reproduction.

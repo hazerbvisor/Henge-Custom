@@ -12,7 +12,7 @@ DECLARE_PROGRAM(p_timer_irq);
 DECLARE_PROGRAM(p_uart);
 extern const char devices_programs_begin[], devices_programs_finish[];
 
-#define WORK "/Volumes/macOS Storage/husk-work/hengevm"
+
 #define RAM_SIZE (64ull << 20)
 
 static HvMachine m;
@@ -178,7 +178,18 @@ static void test_bdif(HvDisk *root, HvDisk *aux) {
     a = ret; l = 1; f = 0; memcpy(r + 32, &a, 8); memcpy(r + 40, &l, 4); memcpy(r + 44, &f, 4);
     memcpy(ram(req), r, 48);
     check("bdif status", rd32(VMAPPLE_BDOOR), 1);
-    check("bdif root next-device", rd32(VMAPPLE_BDOOR + 0x420), 0x8000000);
+    check("bdif root capacity", rd32(VMAPPLE_BDOOR + 0x420), root->size / 512);
+    check("bdif aux capacity skips header", rd32(VMAPPLE_BDOOR + 0x10420), aux->size / 512);
+    /* Capacity-only metadata probes: no disk files are extended or written. */
+    uint64_t saved = root->size;
+    const unsigned gib[] = {64, 128, 256, 512};
+    for (unsigned i = 0; i < sizeof gib / sizeof gib[0]; i++) {
+        root->size = (uint64_t)gib[i] << 30;
+        check("bdif 64-512 GiB actual capacity", rd32(VMAPPLE_BDOOR + 0x420), root->size / 512);
+    }
+    root->size = saved + 1;
+    check("bdif unaligned capacity rejected", rd32(VMAPPLE_BDOOR + 0x420), UINT32_MAX);
+    root->size = saved;
     for (int which = 0; which < 2; which++) {
         HvDisk *d = which ? aux : root;
         ram(ret)[0] = 0xee;
@@ -442,9 +453,14 @@ static void test_guest_programs(void) {
 int main(void) {
     setvbuf(stdout, NULL, _IONBF, 0);
     if (hv_machine_init(&m, 4 << 20) != 0) return 1;
-    const char *root_path = WORK "/test-root.img", *aux_path = WORK "/test-aux.img";
+    /* Only new, uniquely owned fixtures: never open a user's VM disks. */
+    char work[] = "/tmp/henge-devices-XXXXXX";
+    if (!mkdtemp(work)) return 1;
+    char root_path[256], aux_path[256];
+    snprintf(root_path, sizeof root_path, "%s/test-root.img", work);
+    snprintf(aux_path, sizeof aux_path, "%s/test-aux.img", work);
     if (make_disk(root_path, 1 << 20, 1) || make_disk(aux_path, 256 << 10, 2)) {
-        printf("cannot create test disks in %s\n", WORK);
+        printf("cannot create test disks in %s\n", work);
         return 1;
     }
     static HvDisk root, aux;
@@ -483,6 +499,7 @@ int main(void) {
     hv_disk_close(&aux);
     unlink(root_path);
     unlink(aux_path);
+    rmdir(work);
     printf("%d checks, %d failures\n", checks, failures);
     return failures != 0;
 }
