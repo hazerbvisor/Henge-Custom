@@ -1,6 +1,7 @@
 # Light build: one clang call per file, no parallel jobs needed.
+PERF_DIAGNOSTICS ?= 0
 CC = clang
-CFLAGS = -std=c11 -Wall -Wextra -O2 -g -Icore -Ihost -Idevices
+CFLAGS = -DHV_ENABLE_PERF=$(PERF_DIAGNOSTICS) -std=c11 -Wall -Wextra -O2 -g -Icore -Ihost -Idevices
 B = build
 # Inlined native-reference helpers hold several multi-megabyte HvCpu values.
 TEST_LDFLAGS = -Wl,-stack_size,0x4000000
@@ -114,7 +115,7 @@ clean:
 IOS_SDK = $(shell xcrun --sdk iphoneos --show-sdk-path)
 IOS_CC = xcrun --sdk iphoneos clang -arch arm64 -miphoneos-version-min=17.0 -isysroot $(IOS_SDK)
 IOS_DEPS ?= $(HOME)/Documents/Coding/Husk/build/ios-arm64/sysroot
-IOS_CFLAGS = -std=c11 -Wall -Wextra -O2 -g -Icore -Ihost -Idevices -I$(IOS_DEPS)/include/slirp
+IOS_CFLAGS = -DHV_ENABLE_PERF=$(PERF_DIAGNOSTICS) -std=c11 -Wall -Wextra -O2 -g -Icore -Ihost -Idevices -I$(IOS_DEPS)/include/slirp
 IB = build/ios
 IOS_SRC = $(wildcard core/*.c) host/jit_region.c host/disk.c host/vm.c host/net_slirp.c host/share.c host/audio_mac.c host/hvsparse.c host/usb_host.c \
           $(filter-out devices/pvg_mac.m,$(wildcard devices/*.c))

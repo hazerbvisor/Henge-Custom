@@ -2,6 +2,12 @@
 #define HENGE_PERF_H
 #include <stdint.h>
 
+/* Explicit developer build opt-in; shipped builds contain no per-entry timers. */
+#ifndef HV_ENABLE_PERF
+#define HV_ENABLE_PERF 0
+#endif
+#define HV_PERF_ACTIVE(owner) (HV_ENABLE_PERF && (owner)->perf_enabled)
+
 /* Single-owner histogram, in microseconds. Percentiles are bucket upper bounds.
    No allocation, locks, or clock reads in record/percentile. */
 typedef struct HvPerfDist {

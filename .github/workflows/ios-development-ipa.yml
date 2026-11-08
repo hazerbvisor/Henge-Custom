@@ -1,4 +1,4 @@
-name: Henge macOS 27 dynamic boot disk capacity IPA
+name: Henge CPU regression recovery IPA
 on:
   push:
     branches:
@@ -149,6 +149,13 @@ jobs:
           assert "hv_disk_read(&disk, 512, gpt, sizeof gpt)" in vm
           print("PASS: iBoot disk capacity and boot IO/GPT diagnostics; guest image untouched")
           PY
+      - name: Test engine and diagnostic-free release configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          make -C Henge B=build/release-check test-engine
+          make -C Henge B=build/diagnostic-check CFLAGS='-std=c11 -Wall -Wextra -O2 -g -Icore -Ihost -Idevices -DHV_ENABLE_PERF=1' test-engine
+          if strings Henge/build/release-check/dispatch.o | grep -q 'perf cpu='; then exit 1; fi
       - name: Install build tools
         shell: bash
         run: |
@@ -186,15 +193,15 @@ jobs:
           # The official script redirects its log before xcodebuild creates this directory.
           mkdir -p ios/build
           ./ios/scripts/package_ipa.sh
-          cp "$HOME/Desktop/Henge.ipa" ../artifacts/Henge-M4-iBoot-DiskCapacityFix.ipa
+          cp "$HOME/Desktop/Henge.ipa" ../artifacts/Henge-M4-CPU-Recovery.ipa
       - name: Validate packaged IPA and record provenance
         shell: bash
-        run: python3 ci/.github/scripts/validate-ipa.py artifacts/Henge-M4-iBoot-DiskCapacityFix.ipa Henge Husk
+        run: python3 ci/.github/scripts/validate-ipa.py artifacts/Henge-M4-CPU-Recovery.ipa Henge Husk
       - name: Upload validated IPA
         id: artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: Henge-M4-iBoot-DiskCapacityFix.ipa
+          name: Henge-M4-CPU-Recovery.ipa
           path: artifacts/
           if-no-files-found: error
           retention-days: 30

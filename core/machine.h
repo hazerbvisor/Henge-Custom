@@ -131,8 +131,6 @@ typedef struct HvPerCpu {
     /* Interrupt lines into this CPU, driven by the GIC. First and together:
        translated code reads both with one load (HvCpu.lines_ptr). */
     int irq_line, fiq_line;
-    HvCpuPerf perf;
-    uint64_t recent[16], nrecent; /* owner-only dispatcher history (pc | el) */
     uint64_t *ijc;           /* indirect-branch cache tables (cpu->ijc points here) */
     uint64_t ijc_pages[2][1024]; /* hashed bitmap of the user pages any process cached targets in (for all-ASID TLBIs) */
     /* Hashed bitmap of (page, salt) pairs with cached targets: a TLBI for one
@@ -179,6 +177,8 @@ typedef struct HvPerCpu {
     uint32_t ijc_seq;            /* odd while it checks a block's mapping in its TLB and caches it (hv_ijc_fill_checked) */
     HvTlbStash stash[HV_STASHES];
     uint64_t stash_clock;
+    HvCpuPerf perf;
+    uint64_t recent[16], nrecent; /* owner-only dispatcher history (pc | el) */
 } HvPerCpu;
 
 #define HV_REQ_TLB_ALL 1u   /* drop the whole TLB and branch cache */
