@@ -1,0 +1,39 @@
+{
+  "henge_commit": "2cec34b56fb958e719e802fb165f5accf8751c86",
+  "husk_commit": "afe83d45b31194c4cc9f7b3db7ec2c757db8346e",
+  "required_fix_ancestor": "f0eec63e9d62966133f861d8b57aedc890437467",
+  "mouse_fix_ancestor": "e740e26fa0efcf62feb10ef85a7ab360281428c0",
+  "upstream_baseline": "da7332e32134f0aa14a67f8cbf67307e68f5367e",
+  "workflow_commit": "2cec34b56fb958e719e802fb165f5accf8751c86",
+  "mouse_sources_sha256": {
+    "ios/Henge/Hardware.swift": "5caf5ddddb1e9050cc947b734053c5cbf704739105ecd7070c051b8b271de6db",
+    "ios/Henge/PhysicalMouseButtons.swift": "a5acb5c3c855513fa97b5ecbd582a0ff19ff79ec3544796ff02688b73a51a818",
+    "ios/Henge/SettingsView.swift": "48ce1930863291e513103391649fb7651f2b8f1f402a1a5dcabcc0474a8491ba"
+  },
+  "gpu_sources_sha256": {
+    "devices/pvg_metal.m": "8a2d530bc465679ede966d30f5bcf009063230132cdee801e392aff8f4eca153",
+    "devices/pvg_lite.c": "0db52d31ca8f25d88cbfeba6830a8d901c080fc90227796dc2bd7a61e32d7dae",
+    "devices/pvg_mac.m": "0b057fb8a24668c7b4937a2c28b5b263a8135c91ef94761307544657751697e6",
+    "devices/pvg_decode.h": "c9da7eb6da19caf69a971e8f9067cbe30c7fb5dd635057385ad7ae1ceec9fe6a",
+    "ios/Henge/GPUDiagnostics.swift": "99e58be4e51711982c1aadefe79b99d0f44e2424d0203e2be783bb6ba3ff718f",
+    "ios/Henge/SessionView.swift": "4f20c4e48a3299975530c694d448481fdee53cf515535b48a8c04edeb49ed033",
+    "ios/Henge/Installer.swift": "c5e6608c695d02d414e89a4c52811f4a8637ba584c78ec966d35d7c44b7ff306"
+  },
+  "gpu_fix_status": "candidate; physical-device verification pending",
+  "gpu_physical_device_status": "awaiting verification on iPad Air M4",
+  "gpu_tests_log_sha256": "6698e046508eca6337a6c437d749df205fd4588fa5d7ae1160f55d5fa77e7261",
+  "gpu_test_skips": [],
+  "mouse_compatibility_default": "swap physical right/middle; left unchanged",
+  "shared_input_pipeline": "unchanged from upstream",
+  "sha256": "dd3044fd3d875b9857f725b7ee5bbe350d025001c6f32102976be55f71f0eaf2",
+  "bundle_identifier": "com.henge.app",
+  "entitlements": {
+    "com.apple.developer.kernel.extended-virtual-addressing": true,
+    "com.apple.developer.kernel.increased-memory-limit": true,
+    "dynamic-codesigning": true,
+    "get-task-allow": true
+  },
+  "signing": "ad-hoc; re-sign with your own development certificate",
+  "xcode": "Xcode 27.1\nBuild version 27A9275",
+  "run_url": "https://github.com/hazerbvisor/Henge-Custom/actions/runs/42450457742"
+}

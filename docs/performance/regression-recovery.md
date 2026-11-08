@@ -106,8 +106,14 @@ fixtures. Local full app/IPA build remains unavailable without full Xcode/iOS SD
 GitHub Actions run 42450457742 builds the pinned recovery engine on ARM64 Xcode 27,
 runs release and diagnostic engine tests, GPU/input regressions, packages the IPA,
 and validates binary architecture, JIT protections/entitlements, BDIF markers,
-provenance and absence of the new hot-path timing strings. Final artifact status
-is recorded after the run completes. PR #6 remains unmerged.
+provenance and absence of the new hot-path timing strings. Run completed successfully; downloadable artifact:
+https://github.com/hazerbvisor/Henge-Custom/actions/runs/42450457742/artifacts/13605606134
+
+The downloaded IPA ZIP, engine commit, SHA256, BDIF marker and absence of new
+timing markers were independently checked locally. Provenance is saved in
+recovery-build-manifest.json. The runner also passed native Metal offscreen
+geometry, depth and dynamic-buffer pixel tests on its Apple Paravirtual device,
+with no GPU skips. This still does not replace physical iPad validation. PR #6 remains unmerged.
 
 ## Required iPad comparison
 
