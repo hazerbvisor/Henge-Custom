@@ -52,6 +52,8 @@ int hv_machine_init_jit(HvMachine *m, void *rx, void *rw, size_t jit_bytes) {
 }
 
 static int init_rest(HvMachine *m) {
+    const char *perf = getenv("HV_PERF");
+    m->perf_enabled = perf && !strcmp(perf, "1");
     /* As many blocks as the region holds (a block is at least ~160 bytes of
        code), so the region filling, not this table, is what flushes; two
        chainable exits each at most. Untouched entries cost nothing. */

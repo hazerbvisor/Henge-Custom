@@ -166,3 +166,10 @@ $(B)/test_display_targets: ios/Henge/DisplayTargetSelection.swift tests/test_dis
 test-display-routing: $(B)/test_display_targets
 	$(B)/test_display_targets
 .PHONY: test-display-routing
+
+$(B)/test_perf: tests/test_perf.c core/perf.h | $(B)
+	$(CC) $(CFLAGS) $< -o $@
+
+test-performance: $(B)/test_perf
+	$(B)/test_perf
+.PHONY: test-performance

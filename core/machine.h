@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 #include "cpu.h"
+#include "perf.h"
 #include "jit_region.h"
 
 /* Guest physical memory: RAM regions backed by host memory, and MMIO regions
@@ -132,6 +133,7 @@ typedef struct HvPerCpu {
     /* Interrupt lines into this CPU, driven by the GIC. First and together:
        translated code reads both with one load (HvCpu.lines_ptr). */
     int irq_line, fiq_line;
+    HvCpuPerf perf;
     uint64_t *ijc;           /* indirect-branch cache tables (cpu->ijc points here) */
     uint64_t ijc_pages[2][1024]; /* hashed bitmap of the user pages any process cached targets in (for all-ASID TLBIs) */
     /* Hashed bitmap of (page, salt) pairs with cached targets: a TLBI for one
@@ -219,6 +221,7 @@ typedef struct HvMachine {
     uint64_t watch_va;   /* debugging: log every write that touches this guest VA (0: off) */
     uint64_t watch_pa;   /* debugging: the same by physical address */
     HvStats stats;
+    int perf_enabled; /* immutable after init: HV_PERF=1 */
     int chain;               /* block chaining and the indirect-branch cache are enabled */
     uint64_t *slots;         /* chainable exits' targets (0: not chained) */
     uint32_t **slot_site;    /* the B in each exit's stub that chaining rewrites to jump to the target */

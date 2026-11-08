@@ -41,6 +41,7 @@ static int cursor_scale(void) {
 
 #include "pvg_lite.h"
 #include "pvg_decode.h"
+#include "perf_report.h"
 
 #if !TARGET_OS_IPHONE
 #import <CoreGraphics/CoreGraphics.h>
@@ -131,6 +132,9 @@ enum { OBJ_BUFFER = 1, OBJ_TEXTURE = 2, OBJ_FUNCTION = 6, OBJ_SERIALIZED = 7, OB
     BOOL tess_factors; /* so is a tessellation factor buffer */
     uint32_t pre_raster_samples, pre_imageblock, pre_threadgroup, pre_tile_w, pre_tile_h; /* for the next pass */
     BOOL tracing; /* HV_PVG_TRACE_FILE exists: say what each exec draws */
+    BOOL perf_enabled;
+    HvPerfDist perf_queue, perf_processing, perf_frames; /* worker / presenter owned */
+    uint64_t perf_last_frame;
     BOOL diagnostics; /* HV_PVG_DIAGNOSTICS: metadata only, bounded for the session */
     uint32_t diag_details, diag_warnings, diag_summaries;
     uint64_t diag_records, diag_invalid, diag_missing, diag_unsupported, diag_suppressed;
@@ -2269,6 +2273,13 @@ static NSString *const screen_shaders = @"#include <metal_stdlib>\n"
             [cb presentDrawable:drawable];
             [cb commit];
             gpu_frames++;
+            if (perf_enabled) {
+                uint64_t now = mach_absolute_time();
+                if (perf_last_frame) hv_perf_record(&perf_frames, hv_perf_us(now - perf_last_frame));
+                perf_last_frame = now;
+                if (perf_frames.count && (perf_frames.count % 120) == 0)
+                    hv_perf_print("present_commit_interval", &perf_frames);
+            }
         } else {
             screen_dirty = YES;
         }
@@ -2366,6 +2377,8 @@ HvPvgMetal *hv_pvg_metal_create(HvPvgLite *lite) {
         Protocol *proto = objc_getProtocol("MTLDeserializationContext");
         if (proto) class_addProtocol([HvContext class], proto);
         HvReplay *r = [HvReplay new];
+        const char *perf = getenv("HV_PERF");
+        r->perf_enabled = perf && !strcmp(perf, "1");
         r->lite = lite;
         r->device = dev;
         r->queue = [dev newCommandQueueWithMaxCommandBufferCount:64];
@@ -2401,8 +2414,11 @@ HvPvgMetal *hv_pvg_metal_create(HvPvgLite *lite) {
 
 void hv_pvg_metal_submit(HvPvgMetal *m, HvPvgLite *lite, uint32_t ch, uint32_t *cmd, uint32_t len) {
     HvReplay *r = (__bridge HvReplay *)m;
+    uint64_t queued = r->perf_enabled ? mach_absolute_time() : 0;
     dispatch_async(r->worker, ^{
         @autoreleasepool {
+            uint64_t started = r->perf_enabled ? mach_absolute_time() : 0;
+            if (r->perf_enabled) hv_perf_record(&r->perf_queue, hv_perf_us(started - queued));
             uint32_t op = cmd[0] & 0xffff, skip = (cmd[0] >> 16) * 8; /* the barriers come first */
             const uint32_t *args = (const uint32_t *)((const uint8_t *)cmd + 12 + skip);
             uint32_t n = len > 12 + skip ? len - 12 - skip : 0;
@@ -2442,6 +2458,13 @@ void hv_pvg_metal_submit(HvPvgMetal *m, HvPvgLite *lite, uint32_t ch, uint32_t *
             }
             if (!gpu_completes) [r finishChannel:ch stamp:cmd[2]];
             free(cmd);
+            if (r->perf_enabled) {
+                hv_perf_record(&r->perf_processing, hv_perf_us(mach_absolute_time() - started));
+                if ((r->perf_processing.count & 0xff) == 0) {
+                    hv_perf_print("pvg_queue", &r->perf_queue);
+                    hv_perf_print("pvg_processing", &r->perf_processing);
+                }
+            }
         }
     });
 }
