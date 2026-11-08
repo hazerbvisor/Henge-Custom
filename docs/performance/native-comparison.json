@@ -1,0 +1,442 @@
+{
+  "host": "macOS-27.2-arm64-arm-64bit",
+  "machine": "arm64",
+  "runs": 7,
+  "scope": "single-vCPU synthetic code; not Roblox or a 4/6-vCPU VM",
+  "samples": [
+    {
+      "run": 0,
+      "build": "baseline",
+      "benchmark": "bench_calls",
+      "native_ms": 0.602,
+      "jit_ms": 2.265
+    },
+    {
+      "run": 0,
+      "build": "baseline",
+      "benchmark": "bench_mem",
+      "native_ms": 0.482,
+      "jit_ms": 1.655
+    },
+    {
+      "run": 0,
+      "build": "baseline",
+      "benchmark": "bench_dispatch",
+      "native_ms": 0.671,
+      "jit_ms": 3.444
+    },
+    {
+      "run": 0,
+      "build": "baseline",
+      "benchmark": "bench_loop",
+      "native_ms": 0.96,
+      "jit_ms": 1.72
+    },
+    {
+      "run": 0,
+      "build": "optimized",
+      "benchmark": "bench_calls",
+      "native_ms": 0.519,
+      "jit_ms": 2.263
+    },
+    {
+      "run": 0,
+      "build": "optimized",
+      "benchmark": "bench_mem",
+      "native_ms": 0.413,
+      "jit_ms": 1.577
+    },
+    {
+      "run": 0,
+      "build": "optimized",
+      "benchmark": "bench_dispatch",
+      "native_ms": 0.653,
+      "jit_ms": 3.17
+    },
+    {
+      "run": 0,
+      "build": "optimized",
+      "benchmark": "bench_loop",
+      "native_ms": 0.818,
+      "jit_ms": 1.476
+    },
+    {
+      "run": 1,
+      "build": "optimized",
+      "benchmark": "bench_calls",
+      "native_ms": 0.508,
+      "jit_ms": 2.251
+    },
+    {
+      "run": 1,
+      "build": "optimized",
+      "benchmark": "bench_mem",
+      "native_ms": 0.414,
+      "jit_ms": 1.587
+    },
+    {
+      "run": 1,
+      "build": "optimized",
+      "benchmark": "bench_dispatch",
+      "native_ms": 0.596,
+      "jit_ms": 3.094
+    },
+    {
+      "run": 1,
+      "build": "optimized",
+      "benchmark": "bench_loop",
+      "native_ms": 0.862,
+      "jit_ms": 1.505
+    },
+    {
+      "run": 1,
+      "build": "baseline",
+      "benchmark": "bench_calls",
+      "native_ms": 0.505,
+      "jit_ms": 2.244
+    },
+    {
+      "run": 1,
+      "build": "baseline",
+      "benchmark": "bench_mem",
+      "native_ms": 0.415,
+      "jit_ms": 1.525
+    },
+    {
+      "run": 1,
+      "build": "baseline",
+      "benchmark": "bench_dispatch",
+      "native_ms": 0.578,
+      "jit_ms": 3.017
+    },
+    {
+      "run": 1,
+      "build": "baseline",
+      "benchmark": "bench_loop",
+      "native_ms": 0.816,
+      "jit_ms": 1.491
+    },
+    {
+      "run": 2,
+      "build": "baseline",
+      "benchmark": "bench_calls",
+      "native_ms": 0.52,
+      "jit_ms": 2.284
+    },
+    {
+      "run": 2,
+      "build": "baseline",
+      "benchmark": "bench_mem",
+      "native_ms": 0.449,
+      "jit_ms": 1.562
+    },
+    {
+      "run": 2,
+      "build": "baseline",
+      "benchmark": "bench_dispatch",
+      "native_ms": 0.609,
+      "jit_ms": 3.025
+    },
+    {
+      "run": 2,
+      "build": "baseline",
+      "benchmark": "bench_loop",
+      "native_ms": 0.864,
+      "jit_ms": 1.498
+    },
+    {
+      "run": 2,
+      "build": "optimized",
+      "benchmark": "bench_calls",
+      "native_ms": 0.519,
+      "jit_ms": 2.235
+    },
+    {
+      "run": 2,
+      "build": "optimized",
+      "benchmark": "bench_mem",
+      "native_ms": 0.406,
+      "jit_ms": 1.516
+    },
+    {
+      "run": 2,
+      "build": "optimized",
+      "benchmark": "bench_dispatch",
+      "native_ms": 0.58,
+      "jit_ms": 3.025
+    },
+    {
+      "run": 2,
+      "build": "optimized",
+      "benchmark": "bench_loop",
+      "native_ms": 0.817,
+      "jit_ms": 1.491
+    },
+    {
+      "run": 3,
+      "build": "optimized",
+      "benchmark": "bench_calls",
+      "native_ms": 0.529,
+      "jit_ms": 2.294
+    },
+    {
+      "run": 3,
+      "build": "optimized",
+      "benchmark": "bench_mem",
+      "native_ms": 0.491,
+      "jit_ms": 1.65
+    },
+    {
+      "run": 3,
+      "build": "optimized",
+      "benchmark": "bench_dispatch",
+      "native_ms": 0.667,
+      "jit_ms": 3.256
+    },
+    {
+      "run": 3,
+      "build": "optimized",
+      "benchmark": "bench_loop",
+      "native_ms": 0.889,
+      "jit_ms": 1.572
+    },
+    {
+      "run": 3,
+      "build": "baseline",
+      "benchmark": "bench_calls",
+      "native_ms": 0.59,
+      "jit_ms": 2.419
+    },
+    {
+      "run": 3,
+      "build": "baseline",
+      "benchmark": "bench_mem",
+      "native_ms": 0.426,
+      "jit_ms": 1.641
+    },
+    {
+      "run": 3,
+      "build": "baseline",
+      "benchmark": "bench_dispatch",
+      "native_ms": 0.64,
+      "jit_ms": 3.463
+    },
+    {
+      "run": 3,
+      "build": "baseline",
+      "benchmark": "bench_loop",
+      "native_ms": 0.923,
+      "jit_ms": 1.802
+    },
+    {
+      "run": 4,
+      "build": "baseline",
+      "benchmark": "bench_calls",
+      "native_ms": 0.585,
+      "jit_ms": 2.417
+    },
+    {
+      "run": 4,
+      "build": "baseline",
+      "benchmark": "bench_mem",
+      "native_ms": 0.511,
+      "jit_ms": 1.636
+    },
+    {
+      "run": 4,
+      "build": "baseline",
+      "benchmark": "bench_dispatch",
+      "native_ms": 0.715,
+      "jit_ms": 3.447
+    },
+    {
+      "run": 4,
+      "build": "baseline",
+      "benchmark": "bench_loop",
+      "native_ms": 0.939,
+      "jit_ms": 1.579
+    },
+    {
+      "run": 4,
+      "build": "optimized",
+      "benchmark": "bench_calls",
+      "native_ms": 0.765,
+      "jit_ms": 2.876
+    },
+    {
+      "run": 4,
+      "build": "optimized",
+      "benchmark": "bench_mem",
+      "native_ms": 0.628,
+      "jit_ms": 1.832
+    },
+    {
+      "run": 4,
+      "build": "optimized",
+      "benchmark": "bench_dispatch",
+      "native_ms": 0.768,
+      "jit_ms": 3.865
+    },
+    {
+      "run": 4,
+      "build": "optimized",
+      "benchmark": "bench_loop",
+      "native_ms": 1.002,
+      "jit_ms": 1.711
+    },
+    {
+      "run": 5,
+      "build": "optimized",
+      "benchmark": "bench_calls",
+      "native_ms": 0.675,
+      "jit_ms": 2.76
+    },
+    {
+      "run": 5,
+      "build": "optimized",
+      "benchmark": "bench_mem",
+      "native_ms": 0.494,
+      "jit_ms": 1.729
+    },
+    {
+      "run": 5,
+      "build": "optimized",
+      "benchmark": "bench_dispatch",
+      "native_ms": 0.664,
+      "jit_ms": 3.495
+    },
+    {
+      "run": 5,
+      "build": "optimized",
+      "benchmark": "bench_loop",
+      "native_ms": 0.954,
+      "jit_ms": 1.695
+    },
+    {
+      "run": 5,
+      "build": "baseline",
+      "benchmark": "bench_calls",
+      "native_ms": 0.56,
+      "jit_ms": 2.581
+    },
+    {
+      "run": 5,
+      "build": "baseline",
+      "benchmark": "bench_mem",
+      "native_ms": 0.457,
+      "jit_ms": 1.639
+    },
+    {
+      "run": 5,
+      "build": "baseline",
+      "benchmark": "bench_dispatch",
+      "native_ms": 0.643,
+      "jit_ms": 3.236
+    },
+    {
+      "run": 5,
+      "build": "baseline",
+      "benchmark": "bench_loop",
+      "native_ms": 0.972,
+      "jit_ms": 1.871
+    },
+    {
+      "run": 6,
+      "build": "baseline",
+      "benchmark": "bench_calls",
+      "native_ms": 0.526,
+      "jit_ms": 2.409
+    },
+    {
+      "run": 6,
+      "build": "baseline",
+      "benchmark": "bench_mem",
+      "native_ms": 0.443,
+      "jit_ms": 1.785
+    },
+    {
+      "run": 6,
+      "build": "baseline",
+      "benchmark": "bench_dispatch",
+      "native_ms": 0.636,
+      "jit_ms": 3.24
+    },
+    {
+      "run": 6,
+      "build": "baseline",
+      "benchmark": "bench_loop",
+      "native_ms": 0.936,
+      "jit_ms": 1.625
+    },
+    {
+      "run": 6,
+      "build": "optimized",
+      "benchmark": "bench_calls",
+      "native_ms": 0.533,
+      "jit_ms": 2.631
+    },
+    {
+      "run": 6,
+      "build": "optimized",
+      "benchmark": "bench_mem",
+      "native_ms": 0.449,
+      "jit_ms": 1.654
+    },
+    {
+      "run": 6,
+      "build": "optimized",
+      "benchmark": "bench_dispatch",
+      "native_ms": 0.62,
+      "jit_ms": 3.257
+    },
+    {
+      "run": 6,
+      "build": "optimized",
+      "benchmark": "bench_loop",
+      "native_ms": 0.858,
+      "jit_ms": 1.621
+    }
+  ],
+  "medians": {
+    "bench_calls": {
+      "baseline": {
+        "native_ms": 0.56,
+        "jit_ms": 2.409
+      },
+      "optimized": {
+        "native_ms": 0.529,
+        "jit_ms": 2.294
+      }
+    },
+    "bench_dispatch": {
+      "baseline": {
+        "native_ms": 0.64,
+        "jit_ms": 3.24
+      },
+      "optimized": {
+        "native_ms": 0.653,
+        "jit_ms": 3.256
+      }
+    },
+    "bench_loop": {
+      "baseline": {
+        "native_ms": 0.936,
+        "jit_ms": 1.625
+      },
+      "optimized": {
+        "native_ms": 0.862,
+        "jit_ms": 1.572
+      }
+    },
+    "bench_mem": {
+      "baseline": {
+        "native_ms": 0.449,
+        "jit_ms": 1.639
+      },
+      "optimized": {
+        "native_ms": 0.449,
+        "jit_ms": 1.65
+      }
+    }
+  }
+}

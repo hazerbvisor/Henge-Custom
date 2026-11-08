@@ -171,7 +171,7 @@ test-display-routing: $(B)/test_display_targets
 	$(B)/test_display_targets
 .PHONY: test-display-routing
 
-$(B)/test_perf: tests/test_perf.c core/perf.h | $(B)
+$(B)/test_perf: tests/test_perf.c core/perf.h core/perf_report.h | $(B)
 	$(CC) $(CFLAGS) $< -o $@
 
 $(B)/test_dispatch_cache: tests/test_dispatch_cache.c $(ENGINE)
