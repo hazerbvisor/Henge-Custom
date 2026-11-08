@@ -95,7 +95,9 @@ $(B)/test_devices: tests/test_devices.c tests/devices_programs.S tests/harness.S
 $(B)/test_%: tests/test_%.c tests/%_programs.S tests/harness.S tests/harness.h $(ENGINE)
 	$(CC) $(CFLAGS) -Itests tests/test_$*.c tests/$*_programs.S tests/harness.S $(ENGINE) $(TEST_LDFLAGS) -o $@
 
-test: all
+test: all test-engine
+
+test-engine: $(TESTS)
 	@for t in $(TESTS); do echo "== $$t"; $$t || exit 1; done
 
 $(B):
@@ -104,7 +106,7 @@ $(B):
 clean:
 	rm -rf $(B)
 
-.PHONY: all test clean
+.PHONY: all test test-engine clean
 
 # ---- iOS: the engine as a static library for the Henge app (ios/) ----
 # make ios-lib -> build/ios/libhengevm.a. Networking links the arm64 iOS builds
