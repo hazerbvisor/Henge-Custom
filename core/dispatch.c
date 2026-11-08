@@ -210,6 +210,9 @@ static HvBlock *lookup(HvCpu *cpu, uint64_t va, uint64_t pa, uint32_t flags, con
     b->next = m->hash[h];
     __atomic_store_n(&m->hash[h], b, __ATOMIC_RELEASE);
     pthread_mutex_unlock(&m->tr_mu);
+    /* The owner can reuse this block without another shared hash walk. The
+       usual PA, flags and page-generation checks still guard every hit. */
+    jc[j].va = va, jc[j].b = b;
     return b;
 flush_unlocked:
     pthread_mutex_lock(&m->tr_mu);
@@ -425,7 +428,7 @@ void hv_debug_el0_in_kernel(HvCpu *cpu, const char *what) {
                             "miss site %llx\n  recent:", b ? (unsigned long long)b->va : 0ull, b ? b->flags : 0, lo, m->nblocks,
                     (unsigned long long)m->stats.block_flushes, (unsigned long long)cpu->last_stub,
                     (unsigned long long)cpu->miss_site);
-            for (int k = 15; k >= 0; k--) fprintf(stderr, " %llx", (unsigned long long)m->stats.recent[(m->stats.nrecent - 1 - k) & 15]);
+            for (int k = 15; k >= 0; k--) fprintf(stderr, " %llx", (unsigned long long)cpu->pc_state->recent[(cpu->pc_state->nrecent - 1 - k) & 15]);
             fprintf(stderr, "\n  (%s) el changes, oldest first:\n", what);
             for (int k = 15; k >= 0; k--) {
                 uint32_t i = (m->stats.nelchg - 1 - k) & 15;
@@ -957,7 +960,7 @@ static int run_loop(HvCpu *cpu, int one) {
                         last_reason, why, (unsigned long long)cpu->miss_site, (unsigned long long)cpu->elr_el1,
                         (unsigned long long)cpu->spsr_el1, (unsigned long long)cpu->x[30], (unsigned long long)m->stats.fast_resumes);
                 for (int k = 0; k < 16; k++)
-                    fprintf(stderr, " %llx", (unsigned long long)m->stats.recent[(m->stats.nrecent + k) & 15]);
+                    fprintf(stderr, " %llx", (unsigned long long)cpu->pc_state->recent[(cpu->pc_state->nrecent + k) & 15]);
                 fprintf(stderr, "\n");
             }
         }
@@ -1060,7 +1063,7 @@ static int run_loop(HvCpu *cpu, int one) {
         prev_pc = cpu->pc;
         prev_b = b;
         if (m->stats_interval) m->stats.why[why]++;
-        m->stats.recent[m->stats.nrecent++ & 15] = cpu->pc | cpu->el;
+        cpu->pc_state->recent[cpu->pc_state->nrecent++ & 15] = cpu->pc | cpu->el;
         if (why == 5 && m->stats_interval) {
             int kind = 6;
             /* A plain walk: fetching could raise an abort in the guest. */

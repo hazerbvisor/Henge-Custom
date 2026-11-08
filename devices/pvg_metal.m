@@ -2266,6 +2266,7 @@ static NSString *const screen_shaders = @"#include <metal_stdlib>\n"
             }];
         }
 #endif
+        BOOL perf_presented = NO;
         // Serialize the final check and commit with set_layer: a switch that has
         // returned must not be followed by a commit to its old target.
         os_unfair_lock_lock(&screen_lock);
@@ -2273,17 +2274,18 @@ static NSString *const screen_shaders = @"#include <metal_stdlib>\n"
             [cb presentDrawable:drawable];
             [cb commit];
             gpu_frames++;
-            if (perf_enabled) {
-                uint64_t now = mach_absolute_time();
-                if (perf_last_frame) hv_perf_record(&perf_frames, hv_perf_us(now - perf_last_frame));
-                perf_last_frame = now;
-                if (perf_frames.count && (perf_frames.count % 120) == 0)
-                    hv_perf_print("present_commit_interval", &perf_frames);
-            }
+            perf_presented = perf_enabled;
         } else {
             screen_dirty = YES;
         }
         os_unfair_lock_unlock(&screen_lock);
+        if (perf_presented) {
+            uint64_t now = mach_absolute_time();
+            if (perf_last_frame) hv_perf_record(&perf_frames, hv_perf_us(now - perf_last_frame));
+            perf_last_frame = now;
+            if (perf_frames.count && (perf_frames.count % 120) == 0)
+                hv_perf_print("present_commit_interval", &perf_frames);
+        }
     }
 }
 

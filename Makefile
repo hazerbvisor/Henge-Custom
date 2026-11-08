@@ -2,6 +2,8 @@
 CC = clang
 CFLAGS = -std=c11 -Wall -Wextra -O2 -g -Icore -Ihost -Idevices
 B = build
+# Inlined native-reference helpers hold several multi-megabyte HvCpu values.
+TEST_LDFLAGS = -Wl,-stack_size,0x4000000
 
 CORE = $(B)/classify.o $(B)/operands.o $(B)/translate.o $(B)/dispatch.o $(B)/mmu.o $(B)/memop.o \
        $(B)/exception.o $(B)/sysreg.o $(B)/machine.o
@@ -12,7 +14,7 @@ ENGINE = $(CORE) $(HOST)
 METAL_LIBS = -framework Foundation -framework QuartzCore -framework Metal -framework IOSurface -framework CoreGraphics -framework ImageIO -framework UniformTypeIdentifiers
 
 TESTS = $(B)/test_classify $(B)/test_jit_region $(B)/test_operands $(B)/test_jit $(B)/test_mem \
-        $(B)/test_mmu $(B)/test_exc $(B)/test_devices
+        $(B)/test_mmu $(B)/test_exc $(B)/test_devices $(B)/test_perf $(B)/test_dispatch_cache
 
 all: $(TESTS) $(B)/hengevm $(B)/hengevm-ref $(B)/hvsparse
 
@@ -89,9 +91,9 @@ $(B)/hvsparse: tools/hvsparse_main.c host/hvsparse.c host/hvsparse.h | $(B)
 
 # Block-level tests: test_X.c plus X_programs.S, run natively and through the JIT.
 $(B)/test_devices: tests/test_devices.c tests/devices_programs.S tests/harness.S tests/harness.h $(ENGINE) $(DEV)
-	$(CC) $(CFLAGS) -Itests tests/test_devices.c tests/devices_programs.S tests/harness.S $(ENGINE) $(DEV) $(METAL_LIBS) -o $@
+	$(CC) $(CFLAGS) -Itests tests/test_devices.c tests/devices_programs.S tests/harness.S $(ENGINE) $(DEV) $(METAL_LIBS) $(TEST_LDFLAGS) -o $@
 $(B)/test_%: tests/test_%.c tests/%_programs.S tests/harness.S tests/harness.h $(ENGINE)
-	$(CC) $(CFLAGS) -Itests tests/test_$*.c tests/$*_programs.S tests/harness.S $(ENGINE) -o $@
+	$(CC) $(CFLAGS) -Itests tests/test_$*.c tests/$*_programs.S tests/harness.S $(ENGINE) $(TEST_LDFLAGS) -o $@
 
 test: all
 	@for t in $(TESTS); do echo "== $$t"; $$t || exit 1; done
@@ -170,6 +172,10 @@ test-display-routing: $(B)/test_display_targets
 $(B)/test_perf: tests/test_perf.c core/perf.h | $(B)
 	$(CC) $(CFLAGS) $< -o $@
 
-test-performance: $(B)/test_perf
+$(B)/test_dispatch_cache: tests/test_dispatch_cache.c $(ENGINE)
+	$(CC) $(CFLAGS) $^ -o $@
+
+test-performance: $(B)/test_perf $(B)/test_dispatch_cache
 	$(B)/test_perf
+	$(B)/test_dispatch_cache
 .PHONY: test-performance

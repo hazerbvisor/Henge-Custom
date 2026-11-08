@@ -95,10 +95,8 @@ typedef struct HvStats {
     uint64_t reset_why[8];    /* cache drops: full flush, TLBI by ASID, TLBI user VA, TLBI kernel VA, code change, user VA in every ASID (whole user half), keyed filter full, big user range */
     uint64_t why[6];          /* dispatcher entries by cause: chain fill, kick, exception/sysreg, interrupt, cached target, cache miss */
     uint64_t miss_kind[7];    /* cache misses by the branch that missed: RET, BR/BLR, B/BL, conditional, MSR, other, unknown */
-    uint64_t recent[16];      /* debugging: the last blocks the dispatcher entered (pc | el) */
     struct { uint64_t from, to, spsr; uint32_t kind, el; } elchg[16]; /* debugging: last exception entries (kind = type) and ERETs (kind 9) */
     uint32_t nelchg;
-    uint64_t nrecent;
     uint64_t translate_ticks, translated_insns, translated_words; /* time spent translating, guest and host code size */
     uint64_t retrans_va, retrans_vapa; /* translations of a VA (and VA+PA) translated before: diagnostics */
     uint64_t helper[12];      /* by HV_OP_* */
@@ -134,6 +132,7 @@ typedef struct HvPerCpu {
        translated code reads both with one load (HvCpu.lines_ptr). */
     int irq_line, fiq_line;
     HvCpuPerf perf;
+    uint64_t recent[16], nrecent; /* owner-only dispatcher history (pc | el) */
     uint64_t *ijc;           /* indirect-branch cache tables (cpu->ijc points here) */
     uint64_t ijc_pages[2][1024]; /* hashed bitmap of the user pages any process cached targets in (for all-ASID TLBIs) */
     /* Hashed bitmap of (page, salt) pairs with cached targets: a TLBI for one
