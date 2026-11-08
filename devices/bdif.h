@@ -6,7 +6,9 @@
 #include "virtio_usb.h"
 
 /* The vmapple "backdoor" block interface the boot ROM reads its disks
-   through, as in QEMU's hw/vmapple/bdif.c. Reads only, like iBoot. */
+   through, as in QEMU's hw/vmapple/bdif.c. The boot ROM also queries
+   capacity in 512-byte sectors; unlike QEMU's fixed 64 GiB example,
+   Henge returns the actual disk image size. macOS 27 may also write aux. */
 /* Channel 0x100000 is the USB device port (device type 0x1a01) on installer
    boots: Apple's MMIO transport, two queues, the virtio-usb messages. A
    submission is a chain of up to 5 descriptors {u64 addr, u32 len, u16 1,

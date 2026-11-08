@@ -149,10 +149,25 @@ static uint64_t bdif_read(void *opaque, uint64_t off, unsigned size) {
     case REG_BUSY: return 1;      /* ready */
     case REG_UNK2: return 1;
     case REG_UNK3: return 0;
-    case REG_NEXT_DEVICE:
-        if (devid == DEVID_ROOT) return 0x8000000;
-        if (devid == DEVID_AUX) return 0x10000;
-        return ~0ull;
+    case REG_NEXT_DEVICE: {
+        /* This register reports the device's SIZE IN 512-BYTE SECTORS.
+         * QEMU's fixed values (0x8000000 root / 0x10000 aux) are 64 GiB
+         * and 32 MiB respectively. A larger sparse disk created before
+         * restore must report its actual length to iBootStage1, otherwise
+         * the backup GPT appears beyond the end of its block device.
+         */
+        HvDisk *d = devid == DEVID_ROOT ? b->root :
+                    devid == DEVID_AUX ? b->aux : NULL;
+        if (!d || (d->size & 511u)) return ~0ull;
+        uint64_t sectors = d->size / 512;
+        static unsigned root_logged, aux_logged;
+        unsigned *logged = devid == DEVID_ROOT ? &root_logged : &aux_logged;
+        if (!__atomic_exchange_n(logged, 1u, __ATOMIC_RELAXED))
+            fprintf(stderr, "bdif-capacity %s: %llu sectors (%llu bytes)\n",
+                    devid == DEVID_ROOT ? "root" : "aux",
+                    (unsigned long long)sectors, (unsigned long long)d->size);
+        return sectors;
+    }
     default: return ~0ull;
     }
 }
@@ -173,10 +188,21 @@ static void command(HvBdif *b, HvDisk *disk, uint64_t req_pa) {
             }
         }
     }
-    if (b->m->log >= 2 || ret) {
+    /*
+     * Boot diagnostic build: report a bounded sample of successful BDIF
+     * operations as well as failures. This is especially useful for an iBoot
+     * Stage1 panic, which happens before the guest's kernel can write logs.
+     * Never print guest disk contents, only sector/length/direction/status.
+     * The REG_NEXT_DEVICE values are QEMU's device discovery constants,
+     * not a hardcoded virtual disk size; leave those intact.
+     */
+    static unsigned successful_seen, failed_seen;
+    unsigned n = ret ? __atomic_fetch_add(&failed_seen, 1, __ATOMIC_RELAXED)
+                     : __atomic_fetch_add(&successful_seen, 1, __ATOMIC_RELAXED);
+    if (b->m->log >= 2 || n < (ret ? 64u : 96u)) {
         uint32_t sector[4] = {0};
         hv_phys_read(b->m, req[0].addr, sector, sizeof sector);
-        fprintf(stderr, "bdif %s: sector %u len %u flags %x -> %s\n", disk == b->aux ? "aux" : "root", sector[2],
+        fprintf(stderr, "bdif-bootio %s: sector %u len %u flags %x -> %s\n", disk == b->aux ? "aux" : "root", sector[2],
                 req[1].len, req[1].flags, ret ? "failed" : "ok");
     }
     hv_phys_write(b->m, req[2].addr, &ret, 1);
