@@ -1,3 +1,5 @@
+> Current PR recovery: see [regression-recovery.md](regression-recovery.md). The runtime-only diagnostics instructions and cache-warming recommendation below describe the earlier revision.
+
 # CPU / JIT performance audit
 
 ## Scope and conclusion
