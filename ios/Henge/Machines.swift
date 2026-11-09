@@ -16,7 +16,10 @@ struct VirtualMac: Identifiable, Codable, Hashable {
     /// The size macOS is told its screen is. Macs made before this was a choice have none: 16:9.
     var screenWidth: Int?
     var screenHeight: Int?
-    var screen: (width: Int, height: Int) { (screenWidth ?? 1920, screenHeight ?? 1080) }
+    /// m4 fork: the iPad's own panel at Retina density. On by default on iPad, for Macs that never chose.
+    var retina: Bool?
+    var isRetina: Bool { Device.isPad && (retina ?? false) }
+    var screen: (width: Int, height: Int) { isRetina ? Device.retinaScreen : (screenWidth ?? 1920, screenHeight ?? 1080) }
     var aspect: CGFloat { CGFloat(screen.width) / CGFloat(screen.height) }
 
     var directory: URL { Machines.directory(for: id) }
@@ -37,8 +40,10 @@ enum GuestMemory {
             .volumeAvailableCapacityForImportantUsage ?? 0
         let room = free > 0 ? UInt64(max(free - (2 << 30), 0)) >> 20 : UInt64.max
         let reach = henge_largest_mapping_mb()
-        let ram = min(UInt64(mac.ramMB), room, reach > 512 ? reach - 512 : 0) / 512 * 512
-        HengeLog.log("session", "guest RAM \(ram) MB (asked \(mac.ramMB), disk room \(room), largest mapping \(reach))")
+        let safe = UserDefaults.standard.object(forKey: EngineTuning.safeStartupKey) as? Bool ?? true
+        let requested = safe ? min(mac.ramMB, 8192) : mac.ramMB
+        let ram = min(UInt64(requested), room, reach > 512 ? reach - 512 : 0) / 512 * 512
+        HengeLog.log("session", "guest RAM \(ram) MB (asked \(mac.ramMB), safe \(safe), disk room \(room), largest mapping \(reach))")
         return ram
     }
 }
