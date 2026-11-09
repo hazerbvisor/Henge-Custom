@@ -48,8 +48,9 @@ jobs:
         run: |
           set -euo pipefail
           test "$(uname -m)" = arm64
-          xcodebuild -version
-          xcodebuild -version | head -1 | grep -E '^Xcode (27|[3-9][0-9])([. ]|$)'
+          XCODE_VERSION="$(xcodebuild -version)"
+          printf '%s\n' "$XCODE_VERSION"
+          printf '%s\n' "$XCODE_VERSION" | grep -E '^Xcode (27|[3-9][0-9])([. ]|$)'
           xcrun --sdk iphoneos --show-sdk-version
           test "$(git -C Henge rev-parse HEAD)" = "$HENGE_SHA"
           test "$(git -C Husk rev-parse HEAD)" = "$HUSK_SHA"
