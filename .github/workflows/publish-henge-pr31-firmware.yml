@@ -1,0 +1,99 @@
+name: Publish Henge 0.2 PR31 FirmwareFix IPA
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/publish-henge-pr31-firmware.yml
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: "${{ github.token }}"
+      SOURCE_RUN: "42589687367"
+      SOURCE_SHA: "94ba07c41a57022872e5085f3a8da227618269f3"
+      ARTIFACT: "Henge-0.2-PR31-FirmwareFix"
+      IPA: "Henge-0.2-PR31-FirmwareFix.ipa"
+      RELEASE_TAG: "henge-0.2-pr31-firmware-fix-20261109"
+
+    steps:
+      - name: Verify source build is completed and belongs to the pinned branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN" --jq \
+            '"status=\(.status) conclusion=\(.conclusion) sha=\(.head_sha)"'
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN" --jq .conclusion)" = success
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN" --jq .head_sha)" = "$SOURCE_SHA"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN" --jq .head_branch)" = "fix/henge-02-upstream-pr31-unrestricted-20261109"
+
+      - name: Download IPA and source/test manifest from successful runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          gh run download "$SOURCE_RUN" --repo "$GITHUB_REPOSITORY" --name "$ARTIFACT" --dir release
+          test -s "release/$IPA"
+          test -s release/build-manifest.json
+          test -s release/official-pr31-backport.patch
+          test -s release/firmware-disk-tests.log
+
+      - name: Verify firmware tests and unchanged VM settings
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, json, os, plistlib, re, zipfile
+          root = Path("release")
+          ipa = root / os.environ["IPA"]
+          manifest = json.loads((root / "build-manifest.json").read_text())
+          actual = hashlib.sha256(ipa.read_bytes()).hexdigest()
+          assert manifest["sha256"] == actual, ("IPA digest mismatch", actual)
+          assert manifest["upstream_release_sha"] == "f9c12c93620af4c4c5f5f65f9793b72f883be682"
+          assert manifest["workflow_sha"] == os.environ["SOURCE_SHA"]
+          assert str(manifest["build_run"]) == os.environ["SOURCE_RUN"]
+          assert manifest["status"] == "Built; physical iPad boot validation pending"
+          assert manifest["settings"] == "All original Henge 0.2 CPU/RAM/performance options unchanged"
+          assert manifest["files_modified"] == ["devices/bdif.c", "host/disk.c", "tests/test_devices.c (regression test only)"]
+          tests=(root / "firmware-disk-tests.log").read_text()
+          assert re.search(r"^\d+ checks, 0 failures$", tests, re.MULTILINE), tests[-2000:]
+          patch=(root / "official-pr31-backport.patch").read_text()
+          assert "diff --git a/devices/bdif.c b/devices/bdif.c" in patch
+          assert "diff --git a/host/disk.c b/host/disk.c" in patch
+          assert "diff --git a/ios/" not in patch
+          with zipfile.ZipFile(ipa) as archive:
+              assert archive.testzip() is None
+              info=plistlib.loads(archive.read("Payload/Henge.app/Info.plist"))
+              assert info["CFBundleIdentifier"] == "com.henge.app"
+              assert 2 in info["UIDeviceFamily"]
+          print("PASS: original settings, upstream PR31 patch, native regressions, and IPA bundle")
+          print("SHA256:", actual)
+          PY
+
+      - name: Publish prerelease with direct IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          notes="Experimental official Henge 0.2.0 build with isolated backport of merged upstream firmware disk PR #31 (Leviidev/Henge#31). It reports actual disk capacities and supports large firmware transfers. Preserves all original Henge 0.2 CPU, RAM, Superblocks, JIT and performance settings; does not apply the earlier SafeBoot limits. Native disk regression tests pass. Boot on affected iPad M4 has NOT yet been tested or confirmed fixed. Re-sign the ad-hoc IPA with your developer certificate. Back up your virtual Mac and preserve Henge app data. Source run: https://github.com/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN"
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release already exists; not replacing its assets."
+            exit 0
+          fi
+          gh release create "$RELEASE_TAG" \
+            "release/$IPA" \
+            "release/build-manifest.json" \
+            "release/official-pr31-backport.patch" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target main \
+            --title "Henge 0.2 PR31 FirmwareFix (original VM settings)" \
+            --notes "$notes" \
+            --prerelease
+          echo "Direct IPA: https://github.com/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG/$IPA" >> "$GITHUB_STEP_SUMMARY"
