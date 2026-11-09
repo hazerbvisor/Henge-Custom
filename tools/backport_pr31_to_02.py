@@ -37,7 +37,7 @@ change("devices/bdif.c",
     "if (hv_phys_read(b->m, req[0].addr, sector, sizeof sector) == 0) {\n"
     "            /* PR #31: accept large firmware assets only with a valid guest RAM buffer. */")
 
-change("host/disk.c", "#include <fcntl.h>\n", "#include <fcntl.h>\n#include <errno.h>\n")
+change("host/disk.c", '#include <fcntl.h>\n#include "../core/machine.h"', '#include <fcntl.h>\n#include <errno.h>\n#include "../core/machine.h"')
 change("host/disk.c", "#include <unistd.h>\n",
     "#include <unistd.h>\n\n/* PR #31: bound individual syscalls, not the guest's total transfer. */\n"
     "#define DISK_IO_CHUNK (128u << 20)\n")
