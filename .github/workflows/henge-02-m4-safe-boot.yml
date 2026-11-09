@@ -1,0 +1,142 @@
+name: Henge 0.2 M4 safe boot IPA
+
+on:
+  push:
+    branches:
+      - fix/henge-02-safe-boot-m4-20261109
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  ipa:
+    runs-on: xcode-27
+    timeout-minutes: 120
+    env:
+      HUSK: "${{ github.workspace }}/Husk"
+      IOS_DEPS: "${{ github.workspace }}/Husk/build/ios-arm64/sysroot"
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+      HENGE_SHA: "f9c12c93620af4c4c5f5f65f9793b72f883be682"
+      HUSK_SHA: "afe83d45b31194c4cc9f7b3db7ec2c757db8346e"
+    steps:
+      - name: Checkout fork patch tooling
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          path: ci
+          persist-credentials: false
+
+      - name: Checkout official Henge 0.2.0 release source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: Leviidev/Henge
+          ref: f9c12c93620af4c4c5f5f65f9793b72f883be682
+          fetch-depth: 1
+          path: Henge
+          persist-credentials: false
+
+      - name: Checkout pinned Husk dependency
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: Leviidev/Husk
+          ref: afe83d45b31194c4cc9f7b3db7ec2c757db8346e
+          path: Husk
+          persist-credentials: false
+
+      - name: Verify exact source revisions and build toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = arm64
+          XCODE_VERSION="$(xcodebuild -version)"
+          printf '%s\n' "$XCODE_VERSION"
+          printf '%s\n' "$XCODE_VERSION" | grep -E '^Xcode (27|[3-9][0-9])([. ]|$)'
+          xcrun --sdk iphoneos --show-sdk-version
+          test "$(git -C Henge rev-parse HEAD)" = "$HENGE_SHA"
+          test "$(git -C Husk rev-parse HEAD)" = "$HUSK_SHA"
+          mkdir -p "$HOME/Desktop" artifacts
+
+      - name: Apply isolated conservative-startup boot patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 ci/tools/apply_safe_boot.py patch Henge
+          git -C Henge diff --check
+          git -C Henge diff --stat
+          git -C Henge diff > artifacts/safe-startup.patch
+
+      - name: Install Xcode build prerequisites
+        shell: bash
+        run: |
+          set -euo pipefail
+          for tool in xcodegen cmake meson ninja pkg-config autoconf automake libtool; do
+            brew list --versions "$tool" >/dev/null || brew install "$tool"
+          done
+          command -v rustup || { curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.92.0; }
+          export PATH="$HOME/.cargo/bin:$PATH"
+          rustup toolchain install 1.92.0 --profile minimal
+          rustup default 1.92.0
+          rustup target add aarch64-apple-ios
+          dirname "$(rustup which cargo)" >> "$GITHUB_PATH"
+
+      - name: Build pinned Husk dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd Husk
+          ./scripts/fetch_sources.sh
+          ./scripts/build_ios.sh libffi glib libslirp
+          ./scripts/build_rppairing_ios.sh
+          test -s src/app/Frameworks/StikJIT.xcframework/ios-arm64/StikJIT.framework/StikJIT
+          for lib in libslirp libglib-2.0 libintl libpcre2-8; do
+            test -s "build/ios-arm64/sysroot/lib/$lib.a"
+          done
+
+      - name: Build Henge 0.2.0 with safe startup
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd Henge
+          ./ios/scripts/fetch_deps.sh
+          ./tools/build_ios_restore.sh
+          make ios-lib
+          mkdir -p ios/build
+          ./ios/scripts/package_ipa.sh
+          cp "$HOME/Desktop/Henge.ipa" ../artifacts/Henge-0.2-M4-SafeBoot.ipa
+
+      - name: Verify IPA contents and source provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 ci/tools/apply_safe_boot.py verify Henge artifacts/Henge-0.2-M4-SafeBoot.ipa
+          unzip -t artifacts/Henge-0.2-M4-SafeBoot.ipa | tail -2
+
+      - name: Upload IPA and verification manifest
+        id: ipa_artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: Henge-0.2-M4-SafeBoot
+          path: |
+            artifacts/Henge-0.2-M4-SafeBoot.ipa
+            artifacts/build-manifest.json
+            artifacts/safe-startup.patch
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Link IPA artifact
+        env:
+          ARTIFACT_URL: "${{ steps.ipa_artifact.outputs.artifact-url }}"
+        run: |
+          echo "Safe-boot IPA artifact: $ARTIFACT_URL" >> "$GITHUB_STEP_SUMMARY"
+          cat artifacts/build-manifest.json >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload build logs when compilation fails
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Henge-0.2-M4-SafeBoot-diagnostics
+          path: |
+            Henge/ios/build/*.buildlog
+            artifacts/safe-startup.patch
+            Husk/build/logs/
+          if-no-files-found: ignore
