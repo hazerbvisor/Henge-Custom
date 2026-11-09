@@ -1,0 +1,141 @@
+--- a/ios/Henge/EngineTuning.swift
++++ b/ios/Henge/EngineTuning.swift
+@@ -4,6 +4,7 @@
+ /// then Documents/henge-env.txt (KEY=VALUE per line, # comments) overrides them all.
+ /// Applied at launch and again before each Mac starts, so changes need no relaunch.
+ enum EngineTuning {
++    static let statsKey = "henge.perf.engineStats"
+     static let refreshKey = "henge.perf.hz"
+     static let superblocksKey = "henge.perf.superblocks"
+     static let wfiSpinKey = "henge.perf.wfiSpin"
+@@ -15,12 +16,13 @@
+         "HV_HZ": "60",         // the refresh rate macOS is told its display has
+         "HV_WFI_SPIN": "0",    // microseconds an idle CPU watches for work before sleeping
+         "HV_FLUSH": "2",       // disk flush: F_BARRIERFSYNC, ordered but without a full fsync
+-        "HV_STATS": "10",      // seconds between engine stats lines in the log; 0 = off
++        "HV_STATS": "0",      // seconds between engine stats lines in the log; 0 = off
+     ]
+ 
+     static func apply() {
+         var env = defaults
+         let d = UserDefaults.standard
++        if d.bool(forKey: statsKey) { env["HV_STATS"] = "10" }
+         if d.integer(forKey: refreshKey) == 120 { env["HV_HZ"] = "120" }
+         if d.bool(forKey: superblocksKey) { env["HV_SUPERBLOCKS"] = "1" } else { unsetenv("HV_SUPERBLOCKS") }
+         if d.bool(forKey: wfiSpinKey) { env["HV_WFI_SPIN"] = "50" }
+--- a/ios/Henge/Hardware.swift
++++ b/ios/Henge/Hardware.swift
+@@ -155,7 +155,7 @@
+ 
+     private var observers: [NSObjectProtocol] = []
+     private var mice: [GCMouse] = []
+-    private var buttonsDown: Set<Int32> = []
++    private var buttons = PhysicalMouseButtons(swapsRightAndMiddle: false)
+     private var restX: Float = 0, restY: Float = 0
+     private var speed: Float = 1
+     private var reverse = false
+@@ -166,6 +166,11 @@
+         let defaults = UserDefaults.standard
+         speed = defaults.object(forKey: Self.speedKey) == nil ? 1 : Float(defaults.double(forKey: Self.speedKey))
+         reverse = defaults.bool(forKey: Self.reverseKey)
++        releaseButtons()
++        let swap = Device.isPad && (defaults.object(forKey: PhysicalMouseButtons.swapKey) == nil
++            ? PhysicalMouseButtons.defaultSwap : defaults.bool(forKey: PhysicalMouseButtons.swapKey))
++        buttons = PhysicalMouseButtons(swapsRightAndMiddle: swap)
++        HengeLog.log("input", "physical mouse right/middle swap: \(swap)")
+         lastScrollFirst = 0
+         lastScrollSecond = 0
+         GCMouse.mice().forEach(attach)
+@@ -201,8 +206,7 @@
+     }
+ 
+     func releaseButtons() {
+-        for button in buttonsDown { henge_vm_mouse_button(button, 0) }
+-        buttonsDown.removeAll()
++        for button in buttons.releaseAll() { henge_vm_mouse_button(button, 0) }
+     }
+ 
+     private func attach(_ mouse: GCMouse) {
+@@ -228,13 +232,9 @@
+     }
+ 
+     private func button(_ button: Int32, _ pressed: Bool) {
+-        henge_vm_mouse_button(button, pressed ? 1 : 0)
+-        if pressed {
+-            buttonsDown.insert(button)
+-        } else {
+-            buttonsDown.remove(button)
+-            StickyKeys.shared.releaseAll()
+-        }
++        guard let guestButton = buttons.event(button, pressed: pressed) else { return }
++        henge_vm_mouse_button(guestButton, pressed ? 1 : 0)
++        if !pressed { StickyKeys.shared.releaseAll() }
+     }
+ 
+     /// GameController puts vertical motion on the first axis and horizontal on the second.
+--- /dev/null
++++ b/ios/Henge/PhysicalMouseButtons.swift
+@@ -0,0 +1,32 @@
++import Foundation
++
++/// Compatibility at the GameController boundary only. The VM and touch controls use
++/// canonical IDs: 0 = left, 1 = right, 2 = middle. Some physical setups are reported
++/// to exchange right and middle in the guest; do not change the shared virtio mapping.
++struct PhysicalMouseButtons {
++    static let swapKey = "henge.mouse.swapRightAndMiddle"
++    // This fork targets the reported reversed-button setup. Other mice can opt out.
++    static let defaultSwap = true
++
++    // Fixed for a session so a preference change cannot remap a held button's release.
++    let swapsRightAndMiddle: Bool
++    private(set) var held: Set<Int32> = []
++
++    mutating func event(_ physicalButton: Int32, pressed: Bool) -> Int32? {
++        guard (0...2).contains(physicalButton) else { return nil }
++        let guestButton = swapsRightAndMiddle && physicalButton != 0 ? 3 - physicalButton : physicalButton
++        if pressed {
++            held.insert(guestButton)
++        } else {
++            held.remove(guestButton)
++        }
++        return guestButton
++    }
++
++    /// Return canonical IDs, including swapped buttons, for disconnect/background cleanup.
++    mutating func releaseAll() -> [Int32] {
++        let releases = held.sorted()
++        held.removeAll()
++        return releases
++    }
++}
+--- a/ios/Henge/SettingsView.swift
++++ b/ios/Henge/SettingsView.swift
+@@ -3,6 +3,8 @@
+ struct SettingsView: View {
+     @ObservedObject private var jit = JITCoordinator.shared
+     @AppStorage(JITCoordinator.autoEnableKey) private var jitAtLaunch = false
++    @AppStorage(PhysicalMouseButtons.swapKey) private var swapMouseButtons = PhysicalMouseButtons.defaultSwap
++    @AppStorage(EngineTuning.statsKey) private var engineStats = false
+     @AppStorage(HardwareMouse.speedKey) private var mouseSpeed = 1.0
+     @AppStorage(HardwareMouse.reverseKey) private var reverseScrolling = false
+     @AppStorage(HardwareMouse.scrollSpeedKey) private var scrollSpeed = 0.3
+@@ -47,6 +49,9 @@
+                             Text("Pointer speed")
+                             Slider(value: $mouseSpeed, in: 0.5...3)
+                         }
++                        Toggle("Swap physical right and middle buttons", isOn: $swapMouseButtons)
++                        Text("Button mapping changes apply the next time a Mac starts.")
++                            .font(.footnote).foregroundStyle(.secondary)
+                         Toggle("Reverse scrolling", isOn: $reverseScrolling)
+                         VStack(alignment: .leading, spacing: 4) {
+                             Text("Scroll speed")
+@@ -58,6 +63,9 @@
+                     .listRowBackground(Desk.card)
+                 }
+                 Section("Performance") {
++                    Toggle("Detailed engine statistics", isOn: $engineStats)
++                    Text("Adds diagnostic overhead. Leave off during normal play. Applies the next time a Mac starts.")
++                        .font(.footnote).foregroundStyle(.secondary)
+                     Picker("Mac refresh rate", selection: $refreshRate) {
+                         Text("60 Hz").tag(60)
+                         Text("120 Hz").tag(120)

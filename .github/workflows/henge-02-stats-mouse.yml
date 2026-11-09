@@ -1,0 +1,196 @@
+name: Henge 0.2 lower-overhead statistics and mouse swap
+
+on:
+  push:
+    branches:
+      - perf/henge-02-stats-mouse-20261109
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  ipa:
+    runs-on: xcode-27
+    timeout-minutes: 120
+    env:
+      HUSK: "${{ github.workspace }}/Husk"
+      IOS_DEPS: "${{ github.workspace }}/Husk/build/ios-arm64/sysroot"
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+      HENGE_SHA: "f9c12c93620af4c4c5f5f65f9793b72f883be682"
+      HUSK_SHA: "afe83d45b31194c4cc9f7b3db7ec2c757db8346e"
+    steps:
+      - name: Checkout isolated backport tooling
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          path: ci
+          persist-credentials: false
+
+      - name: Checkout official Henge 0.2.0 source (no settings overrides)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: Leviidev/Henge
+          ref: f9c12c93620af4c4c5f5f65f9793b72f883be682
+          fetch-depth: 1
+          path: Henge
+          persist-credentials: false
+
+      - name: Checkout exact Husk build dependency
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: Leviidev/Husk
+          ref: afe83d45b31194c4cc9f7b3db7ec2c757db8346e
+          path: Husk
+          persist-credentials: false
+
+      - name: Verify Xcode, ARM64 and original release sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = arm64
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+          test "$(git -C Henge rev-parse HEAD)" = "$HENGE_SHA"
+          test "$(git -C Husk rev-parse HEAD)" = "$HUSK_SHA"
+          mkdir -p "$HOME/Desktop" artifacts
+
+      - name: Backport merged upstream PR #31 (firmware disk only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 ci/tools/backport_pr31_to_02.py Henge
+          git -C Henge diff --check
+          git -C Henge diff --stat
+          git -C Henge diff > artifacts/official-pr31-backport.patch
+          test "$(git -C Henge diff --name-only | wc -l | tr -d ' ')" = 3
+          test ! -n "$(git -C Henge diff --name-only -- ios)"
+          grep -F 'b->root ? b->root->size / 512' Henge/devices/bdif.c
+          grep -F 'if (n < 0 && errno == EINTR) continue;' Henge/host/disk.c
+          echo "Original CPU, RAM and Henge performance controls are unchanged."
+
+      - name: Apply tested performance and physical mouse overlay
+        shell: bash
+        run: |
+          set -euo pipefail
+          git -C Henge apply ../ci/patches/performance-mouse.patch
+          git -C Henge diff --check
+          cp ci/tests/test_physical_mouse_buttons.swift Henge/tests/
+          cp ci/tests/test_engine_tuning.swift Henge/tests/
+          swiftc -swift-version 5 -O Henge/ios/Henge/PhysicalMouseButtons.swift Henge/tests/test_physical_mouse_buttons.swift -o artifacts/test-mouse
+          artifacts/test-mouse | tee artifacts/mouse-tests.log
+          swiftc -swift-version 5 Henge/ios/Henge/EngineTuning.swift Henge/tests/test_engine_tuning.swift -o artifacts/test-tuning
+          artifacts/test-tuning | tee artifacts/tuning-tests.log
+          swiftc -frontend -parse Henge/ios/Henge/Hardware.swift Henge/ios/Henge/SettingsView.swift
+          cp ci/patches/performance-mouse.patch artifacts/
+          git -C Henge diff > artifacts/combined-source.patch
+
+      - name: Install required Xcode build tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          for tool in xcodegen cmake meson ninja pkg-config autoconf automake libtool; do
+            brew list --versions "$tool" >/dev/null || brew install "$tool"
+          done
+          command -v rustup || { curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.92.0; }
+          export PATH="$HOME/.cargo/bin:$PATH"
+          rustup toolchain install 1.92.0 --profile minimal
+          rustup default 1.92.0
+          rustup target add aarch64-apple-ios
+          dirname "$(rustup which cargo)" >> "$GITHUB_PATH"
+
+      - name: Run official PR31 firmware disk regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd Henge
+          make build/test_devices
+          ./build/test_devices | tee ../artifacts/firmware-disk-tests.log
+
+      - name: Build pinned Husk for StikJIT and restore libraries
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd Husk
+          ./scripts/fetch_sources.sh
+          ./scripts/build_ios.sh libffi glib libslirp
+          ./scripts/build_rppairing_ios.sh
+          test -s src/app/Frameworks/StikJIT.xcframework/ios-arm64/StikJIT.framework/StikJIT
+          for lib in libslirp libglib-2.0 libintl libpcre2-8; do
+            test -s "build/ios-arm64/sysroot/lib/$lib.a"
+          done
+
+      - name: Build and package patched official 0.2 IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd Henge
+          ./ios/scripts/fetch_deps.sh
+          ./tools/build_ios_restore.sh
+          make ios-lib
+          mkdir -p ios/build
+          ./ios/scripts/package_ipa.sh
+          cp "$HOME/Desktop/Henge.ipa" ../artifacts/Henge-0.2-StatsOff-MouseSwap.ipa
+
+      - name: Validate IPA and publish source manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          unzip -t artifacts/Henge-0.2-StatsOff-MouseSwap.ipa | tail -2
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib,json,plistlib,zipfile,os
+          f=Path("artifacts/Henge-0.2-StatsOff-MouseSwap.ipa")
+          with zipfile.ZipFile(f) as z:
+              assert z.testzip() is None
+              names=z.namelist()
+              assert "Payload/Henge.app/Henge" in names
+              info=plistlib.loads(z.read("Payload/Henge.app/Info.plist"))
+              assert info["CFBundleIdentifier"] == "com.henge.app"
+              assert 2 in info["UIDeviceFamily"]
+              assert all(not x.endswith((".p12",".mobileprovision",".p8")) for x in names)
+          manifest={
+            "status":"Built; physical iPad frame-pacing validation pending",
+            "upstream_release":"0.2",
+            "upstream_release_sha":os.environ["HENGE_SHA"],
+            "upstream_fix":"Leviidev/Henge PR #31 (merged 2026-11-09)",
+            "settings":"CPU/RAM/JIT and original performance options preserved; detailed engine stats opt-in; physical mouse swap restored",
+            "files_modified":["devices/bdif.c","host/disk.c","tests/test_devices.c","ios/Henge/EngineTuning.swift","ios/Henge/Hardware.swift","ios/Henge/SettingsView.swift","ios/Henge/PhysicalMouseButtons.swift"],
+            "overlay_sha256":hashlib.sha256(Path("ci/patches/performance-mouse.patch").read_bytes()).hexdigest(),
+            "build_run":os.environ.get("GITHUB_RUN_ID"),
+            "workflow_sha":os.environ.get("GITHUB_SHA"),
+            "file_name":f.name,
+            "bytes":f.stat().st_size,
+            "sha256":hashlib.sha256(f.read_bytes()).hexdigest(),
+            "signing":"ad-hoc; user re-signs with own certificate",
+            "vm_data":"No changes or deletion to guest disk or persistent settings"
+          }
+          Path("artifacts/build-manifest.json").write_text(json.dumps(manifest,indent=2)+"\n")
+          print(json.dumps(manifest,indent=2))
+          PY
+
+      - name: Upload IPA, regression log and exact patch
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: Henge-0.2-StatsOff-MouseSwap
+          path: |
+            artifacts/Henge-0.2-StatsOff-MouseSwap.ipa
+            artifacts/official-pr31-backport.patch
+            artifacts/build-manifest.json
+            artifacts/firmware-disk-tests.log
+            artifacts/mouse-tests.log
+            artifacts/tuning-tests.log
+            artifacts/performance-mouse.patch
+            artifacts/combined-source.patch
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Henge-0.2-StatsOff-MouseSwap-diagnostics
+          path: |
+            artifacts/
+            Henge/ios/build/*.buildlog
+            Husk/build/logs/
+          if-no-files-found: ignore
