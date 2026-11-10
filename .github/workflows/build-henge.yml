@@ -11,13 +11,13 @@
 # your certificate carries it, and Henge falls back to file-backed guest RAM
 # without it.
 
-name: Build Henge IPA
+name: Build Henge IPA with translation fast path
 
 on:
   workflow_dispatch: {}
   push:
     branches:
-      - '**'
+      - 'perf/translation-copy-fastpath-090d600'
 
 env:
   HUSK: ${{ github.workspace }}/Husk
@@ -39,6 +39,13 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: Henge
+
+      - name: Validate translation fast path against original emitter
+        working-directory: Henge
+        run: |
+          set -euo pipefail
+          mkdir -p ../artifacts
+          python3 tools/check_translation.py . | tee ../artifacts/translation-tests.log
 
       # fetch_deps.sh copies prebuilt pieces out of a BUILT Husk checkout:
       # StikJIT.xcframework (vendored in Husk's repo, comes with checkout),
@@ -106,9 +113,32 @@ jobs:
         #   zsh ios/scripts/package_ipa.sh --trollstore
         # which writes ~/Desktop/Henge.tipa instead.
 
+      - name: Validate IPA and save provenance
+        working-directory: Henge
+        run: |
+          set -euo pipefail
+          mkdir -p ../artifacts
+          python3 - <<'PY'
+          import hashlib,json,os,subprocess,zipfile,plistlib
+          from pathlib import Path
+          ipa=Path.home()/"Desktop/Henge.ipa"
+          with zipfile.ZipFile(ipa) as z:
+              assert z.testzip() is None
+              info=plistlib.loads(z.read("Payload/Henge.app/Info.plist"))
+              assert info["CFBundleIdentifier"]=="com.henge.app"
+          manifest={"source":os.environ["GITHUB_SHA"],"base_run":42621054396,
+                    "base_source":"090d60052e5df5d0ce9d60432ccb1a79eb71d82f",
+                    "husk":subprocess.check_output(["git","-C","../Husk","rev-parse","HEAD"],text=True).strip(),
+                    "ipa_sha256":hashlib.sha256(ipa.read_bytes()).hexdigest(),
+                    "status":"Built; physical-device frame pacing unverified"}
+          Path("../artifacts/build-manifest.json").write_text(json.dumps(manifest,indent=2))
+          PY
+
       - name: Upload Henge.ipa
         uses: actions/upload-artifact@v4
         with:
           name: Henge-ipa-${{ github.sha }}
-          path: /Users/runner/Desktop/Henge.ipa
+          path: |
+            /Users/runner/Desktop/Henge.ipa
+            artifacts/
           if-no-files-found: error

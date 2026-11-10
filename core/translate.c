@@ -583,21 +583,22 @@ static void translate_copy(Emit *e, uint32_t insn) {
         put(e, insn);
         return;
     }
-    int stolen[4] = {-1, -1, -1, -1}; /* per field: the guest register to rename, or -1 */
-    uint32_t used = 0;
-    int any = 0;
+    /* Decode register fields once, using constant shifts. Most copied
+       instructions use no stolen registers and need no renaming array. */
+    uint32_t used = ((fields & HV_FIELD_RD) ? 1u << (insn & 31) : 0) |
+                    ((fields & HV_FIELD_RN) ? 1u << ((insn >> 5) & 31) : 0) |
+                    ((fields & HV_FIELD_RM) ? 1u << ((insn >> 16) & 31) : 0) |
+                    ((fields & HV_FIELD_RA) ? 1u << ((insn >> 10) & 31) : 0);
+    const uint32_t stolen_mask = (1u << 6) | (1u << 7) | (1u << 15) | (1u << 18) | (1u << 28);
+    if (!(used & stolen_mask)) {
+        put(e, insn);
+        return;
+    }
+    int stolen[4] = {-1, -1, -1, -1};
     for (int f = 0; f < 4; f++) {
         if (!(fields & (1u << f))) continue;
         int r = hv_field_reg(insn, f);
-        used |= 1u << r;
-        if (is_stolen(r)) { /* guest SP is the host SP while blocks run: copied as it is */
-            stolen[f] = r;
-            any = 1;
-        }
-    }
-    if (!any) {
-        put(e, insn);
-        return;
+        if (is_stolen(r)) stolen[f] = r;
     }
     /* One scratch per distinct stolen register; x6, x7 and x15 use their own host register. */
     int guest_of[4] = {-1, -1, -1, -1}, scratch_of[4];
@@ -2105,3 +2106,4 @@ int hv_translate_block(HvMachine *m, HvBlock *b, const uint32_t *code, uint32_t 
     if (hv_translate_emit(m, b, code, avail) != 0) return -1;
     return hv_translate_place(m, b);
 }
+
