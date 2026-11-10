@@ -106,6 +106,10 @@ test-engine: $(TESTS)
 	@for t in $(TESTS); do echo "== $$t"; $$t || exit 1; done
 .PHONY: test-engine
 
+test-vmem-equivalence:
+	python3 tools/benchmark_vmem.py --check-only
+.PHONY: test-vmem-equivalence
+
 $(B):
 	mkdir -p $(B)
 

@@ -335,8 +335,12 @@ int hv_vmem_xfer(HvCpu *cpu, uint64_t va, void *buf, uint32_t len, int write, in
                 }
             }
         }
-        if (hv_phys_ptr(cpu->m, pa, chunk)) {
-            rc = write ? hv_phys_write(cpu->m, pa, b, chunk) : hv_phys_read(cpu->m, pa, b, chunk);
+        void *host = hv_phys_ptr(cpu->m, pa, chunk);
+        if (host) {
+            /* The complete RAM range is already validated. Reads need no second
+               lookup; writes retain ROM handling and code-page invalidation. */
+            if (write) rc = hv_phys_write(cpu->m, pa, b, chunk);
+            else memcpy(b, host, chunk);
         } else {
             for (uint32_t off = 0; off < chunk && !rc; off += 8) { /* MMIO: at most 8 bytes at a time */
                 uint32_t piece = chunk - off < 8 ? chunk - off : 8;

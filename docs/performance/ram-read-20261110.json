@@ -1,0 +1,119 @@
+{
+  "baseline": "eaf01e9ea5c6e6cc97504c1e609c86f59697449c",
+  "scope": "software-MMU RAM slow-read helper only; not whole-VM or game speed",
+  "runs": [
+    {
+      "stats_enabled": false,
+      "summary": {
+        "cross-page": {
+          "baseline_median_ms": 7.533375,
+          "candidate_median_ms": 5.683125,
+          "paired_median_improvement_pct": 24.33834495708155,
+          "improved_pairs": 9,
+          "pairs": 9
+        },
+        "read4096": {
+          "baseline_median_ms": 21.250917,
+          "candidate_median_ms": 19.427583,
+          "paired_median_improvement_pct": 8.130974838314975,
+          "improved_pairs": 9,
+          "pairs": 9
+        },
+        "read64": {
+          "baseline_median_ms": 3.954083,
+          "candidate_median_ms": 3.064583,
+          "paired_median_improvement_pct": 22.046805954208672,
+          "improved_pairs": 9,
+          "pairs": 9
+        },
+        "read8": {
+          "baseline_median_ms": 3.585792,
+          "candidate_median_ms": 2.723,
+          "paired_median_improvement_pct": 23.619822179336957,
+          "improved_pairs": 9,
+          "pairs": 9
+        }
+      }
+    },
+    {
+      "stats_enabled": false,
+      "summary": {
+        "cross-page": {
+          "baseline_median_ms": 7.473917,
+          "candidate_median_ms": 5.713458,
+          "paired_median_improvement_pct": 24.511307846813512,
+          "improved_pairs": 9,
+          "pairs": 9
+        },
+        "read4096": {
+          "baseline_median_ms": 22.415208,
+          "candidate_median_ms": 20.742875,
+          "paired_median_improvement_pct": 8.252381557923128,
+          "improved_pairs": 9,
+          "pairs": 9
+        },
+        "read64": {
+          "baseline_median_ms": 4.110625,
+          "candidate_median_ms": 3.233083,
+          "paired_median_improvement_pct": 22.187569649578254,
+          "improved_pairs": 9,
+          "pairs": 9
+        },
+        "read8": {
+          "baseline_median_ms": 3.587042,
+          "candidate_median_ms": 2.729417,
+          "paired_median_improvement_pct": 23.164827340690643,
+          "improved_pairs": 9,
+          "pairs": 9
+        },
+        "write64-control": {
+          "baseline_median_ms": 4.779042,
+          "candidate_median_ms": 4.759125,
+          "paired_median_improvement_pct": 0.41675716597593393,
+          "improved_pairs": 7,
+          "pairs": 9
+        },
+        "write8-control": {
+          "baseline_median_ms": 4.461167,
+          "candidate_median_ms": 4.462958,
+          "paired_median_improvement_pct": 0.023474409841606203,
+          "improved_pairs": 5,
+          "pairs": 9
+        }
+      }
+    },
+    {
+      "stats_enabled": true,
+      "summary": {
+        "cross-page": {
+          "baseline_median_ms": 8.746958,
+          "candidate_median_ms": 6.884792,
+          "paired_median_improvement_pct": 21.39792880826139,
+          "improved_pairs": 9,
+          "pairs": 9
+        },
+        "read4096": {
+          "baseline_median_ms": 23.659208,
+          "candidate_median_ms": 22.084042,
+          "paired_median_improvement_pct": 8.388658575101216,
+          "improved_pairs": 9,
+          "pairs": 9
+        },
+        "read64": {
+          "baseline_median_ms": 4.651083,
+          "candidate_median_ms": 3.754167,
+          "paired_median_improvement_pct": 18.38101042502004,
+          "improved_pairs": 9,
+          "pairs": 9
+        },
+        "read8": {
+          "baseline_median_ms": 4.460667,
+          "candidate_median_ms": 3.453417,
+          "paired_median_improvement_pct": 21.389738350789244,
+          "improved_pairs": 9,
+          "pairs": 9
+        }
+      }
+    }
+  ]
+}
