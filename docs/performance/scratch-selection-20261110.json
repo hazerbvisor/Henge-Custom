@@ -1,0 +1,52 @@
+{
+  "baseline": "a96b4b57abd5b0343a544135de7f85619c474519",
+  "scope": "local native synthetic translation emission; not Roblox frame times",
+  "runs": [
+    {
+      "alu": {
+        "baseline_median_ms": 42.829792,
+        "candidate_median_ms": 42.792417,
+        "paired_median_improvement_pct": -0.36412752690773154,
+        "improved_pairs": 2,
+        "pairs": 9
+      },
+      "memory": {
+        "baseline_median_ms": 211.320125,
+        "candidate_median_ms": 201.924625,
+        "paired_median_improvement_pct": 4.281797361133033,
+        "improved_pairs": 9,
+        "pairs": 9
+      },
+      "mixed": {
+        "baseline_median_ms": 104.336625,
+        "candidate_median_ms": 99.122542,
+        "paired_median_improvement_pct": 2.7713183170339217,
+        "improved_pairs": 9,
+        "pairs": 9
+      }
+    },
+    {
+      "alu": {
+        "baseline_median_ms": 51.950958,
+        "candidate_median_ms": 52.628542,
+        "paired_median_improvement_pct": -0.7914506725247739,
+        "improved_pairs": 3,
+        "pairs": 9
+      },
+      "memory": {
+        "baseline_median_ms": 241.664542,
+        "candidate_median_ms": 233.397375,
+        "paired_median_improvement_pct": 3.4965742899129015,
+        "improved_pairs": 9,
+        "pairs": 9
+      },
+      "mixed": {
+        "baseline_median_ms": 125.937458,
+        "candidate_median_ms": 121.442417,
+        "paired_median_improvement_pct": 3.3102027045034843,
+        "improved_pairs": 9,
+        "pairs": 9
+      }
+    }
+  ]
+}

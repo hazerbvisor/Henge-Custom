@@ -1,4 +1,5 @@
 #include "translate.h"
+#include "scratch.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -524,23 +525,11 @@ static void put_add_imm(Emit *e, int d, int n, int64_t imm) {
 /* Host x6, x7 and x15 hold no guest register (guest x6, x7, x15 live in the
    HvCpu, like x18 and x28: they are the least used in compiled code), so they
    are free scratch: picked first and never spilled. */
-static const uint8_t candidates[] = {6, 7, 15, 9, 10, 11, 12, 13, 14, 0, 1, 2, 3, 4, 5, 8,
-                                     16, 17, 19, 20, 21, 22, 23, 24, 25, 26, 27, 29, 30};
-
 static int is_free(int reg) {
     return reg == 6 || reg == 7 || reg == 15;
 }
 
-static int pick(uint32_t *used) {
-    for (unsigned i = 0; i < sizeof candidates; i++) {
-        int r = candidates[i];
-        if (!(*used & (1u << r))) {
-            *used |= 1u << r;
-            return r;
-        }
-    }
-    return -1;
-}
+static int pick(uint32_t *used) { return hv_pick_scratch(used); }
 
 /* Free scratch registers need no saving; the rest go to cpu->spill in order. */
 static int need_spill(const uint8_t *regs, int n, uint8_t *out) {

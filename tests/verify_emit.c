@@ -12,7 +12,11 @@ int main(void) {
             code[i] = trial < 10000 ? 0x91000000 | (rng & 0x003fffff) : rng;
         }
         code[31] = 0xd65f03c0;
-        HvBlock a = {.va=0x100000, .pa=0x100000, .flags=trial % 8}, b = a;
+        /* Exercise both code layouts, grouped fallback and slow-memory helpers. */
+        hv_knob[HV_K_TEST2] = trial & 1;
+        hv_knob[HV_K_GROUPS] = (trial >> 1) & 1;
+        m.slow_mem = (trial >> 2) & 1;
+        HvBlock a = {.va=0x100000, .pa=0x100000, .flags=(trial >> 3) % 16}, b = a;
         m.nslots = 0;
         int ra = reference_emit(&m, &a, code, 32);
         uint64_t hash = reference_hash();
