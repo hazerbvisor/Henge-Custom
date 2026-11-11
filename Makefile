@@ -96,6 +96,16 @@ $(B)/test_%: tests/test_%.c tests/%_programs.S tests/harness.S tests/harness.h $
 test: all
 	@ulimit -s 65520; for t in $(TESTS); do echo "== $$t"; $$t || exit 1; done # a test keeps a whole HvCpu (2 MB of TLB and more) on its stack
 
+# A benchmark to run inside the virtual Mac (arm64 guest, macOS 12+), not on the host: it is what
+# Settings > Performance (grouped memory checks, faster loop exits) and translator changes are
+# A/B'd with. Fetch and run it in the Mac with one line; see tools/vmbench/README.md:
+#   curl -fsSL https://raw.githubusercontent.com/hazerbvisor/Henge-Custom/main/tools/vmbench/run.sh | sh
+$(B)/vmbench: tools/vmbench/vmbench.c | $(B)
+	$(CC) -target arm64-apple-macos12.0 -std=c11 -Wall -Wextra -O2 $< -o $@
+	codesign -f -s - $@
+vmbench: $(B)/vmbench
+.PHONY: vmbench
+
 $(B):
 	mkdir -p $(B)
 
