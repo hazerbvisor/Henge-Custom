@@ -1,0 +1,77 @@
+name: Publish direct Henge IPA download
+
+on:
+  push:
+    branches:
+      - feat/henge-expand-sparse-disk-20261108
+    paths:
+      - .github/workflows/publish-direct-ipa.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish-ipa:
+    name: Publish direct .ipa release asset
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SOURCE_RUN: "42395907108"
+      SOURCE_SHA: "a9488c4cdc23620603b244305d201d2b391cf7fe"
+      ASSET_NAME: "Henge-M4-InstallerDiskSize.ipa"
+      RELEASE_TAG: "henge-installer-disk-size-a9488c4"
+    steps:
+      - name: Confirm the pinned source build succeeded
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_json="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${SOURCE_RUN}")"
+          printf '%s' "$run_json" | python3 -c 'import json,sys; r=json.load(sys.stdin); assert r["conclusion"] == "success", "Source run did not succeed"; assert r["head_sha"] == "a9488c4cdc23620603b244305d201d2b391cf7fe", "Source SHA mismatch"'
+      - name: Retrieve the IPA from the successful build
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-files
+          # gh extracts the GitHub Actions ZIP wrapper. The .ipa INSIDE is retained unchanged.
+          gh run download "$SOURCE_RUN" --repo "$GITHUB_REPOSITORY" --name "$ASSET_NAME" --dir release-files
+          test -s "release-files/$ASSET_NAME"
+      - name: Validate original IPA bytes and bundle before release
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, pathlib, zipfile
+          root = pathlib.Path('release-files')
+          ipa = root / 'Henge-M4-InstallerDiskSize.ipa'
+          assert ipa.is_file() and ipa.stat().st_size > 0, 'IPA missing'
+          with zipfile.ZipFile(ipa) as z:
+              assert z.testzip() is None, 'Invalid IPA archive'
+              assert 'Payload/Henge.app/Henge' in z.namelist(), 'No Henge executable in IPA'
+              assert 'Payload/Henge.app/Info.plist' in z.namelist(), 'No Info.plist in IPA'
+          manifest = root / 'build-manifest.json'
+          assert manifest.is_file(), 'Build manifest missing'
+          doc = json.loads(manifest.read_text())
+          actual = hashlib.sha256(ipa.read_bytes()).hexdigest()
+          assert actual == doc['sha256'], 'IPA digest mismatches validated build'
+          assert doc['henge_commit'] == 'a9488c4cdc23620603b244305d201d2b391cf7fe', 'Wrong build commit'
+          print('PASS: direct IPA matches validated build, sha256=' + actual)
+          PY
+      - name: Create GitHub prerelease with downloadable .ipa (no artifact ZIP wrapper)
+        shell: bash
+        run: |
+          set -euo pipefail
+          notes="Henge iPad/M4 installer storage picker: 64 / 128 (default) / 256 / 512 GiB. Development IPA, ad-hoc signed; re-sign with your own certificate. Not yet tested on physical iPad. Source: $SOURCE_SHA; build: https://github.com/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN."
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "release-files/$ASSET_NAME" --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$RELEASE_TAG" "release-files/$ASSET_NAME" \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$SOURCE_SHA" \
+              --title "Henge installer disk-size picker (M4 development build)" \
+              --notes "$notes" \
+              --prerelease
+          fi
+          echo "Direct IPA download: https://github.com/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG/$ASSET_NAME" >> "$GITHUB_STEP_SUMMARY"

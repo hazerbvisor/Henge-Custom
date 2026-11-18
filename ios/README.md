@@ -1,6 +1,11 @@
 # Henge for iOS
 
-The Henge app on HengeVM's engine. Build: `ios/scripts/package_ipa.sh` (writes
+The Henge app on HengeVM's engine. The installer lets you select a sparse
+virtual disk of 64, 128 (default), 256, or 512 GiB before macOS restore. The
+selected size is the logical maximum, not space preallocated on iPad storage.
+Existing VM disks are not changed by this installer option.
+
+Build: `ios/scripts/package_ipa.sh` (writes
 `~/Desktop/Henge.ipa`; `--trollstore` writes `Henge.tipa`, for TrollStore and
 TrollStore Lite, without the entitlements TrollStore bans). Needs Xcode 27 or later, xcodegen,
 and the prebuilt pieces
